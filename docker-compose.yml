@@ -1,10 +1,18 @@
 services:
   stockfish-server:
+    container_name: stockfish3d
     build: .
     ports:
-      - "8000:8000"
+      - "8083:8000"
     environment:
       STOCKFISH_PATH: /usr/games/stockfish
       STOCKFISH_DEPTH: ${STOCKFISH_DEPTH:-20}
       STOCKFISH_THREADS: ${STOCKFISH_THREADS:-8}
       STOCKFISH_HASH: ${STOCKFISH_HASH:-128}
+    networks:
+            - reverse-proxy
+
+networks:
+  reverse-proxy:
+    external: true
+
