@@ -77,6 +77,23 @@
   }
   .thinking { animation: pulse 1s infinite; }
   @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+  .clock-row {
+    display: flex; gap: 10px; justify-content: center;
+  }
+  .clock-side {
+    flex: 1; text-align: center;
+    background: #0d1117; border-radius: 6px; padding: 8px 4px;
+  }
+  .clock-label { font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: #666; }
+  .clock-time {
+    font-family: 'SF Mono', 'Courier New', monospace;
+    font-size: 22px; font-weight: 700; margin-top: 2px;
+    font-variant-numeric: tabular-nums;
+  }
+  .clock-active { color: #4ade80; }
+  .clock-inactive { color: #666; }
+  .clock-danger { color: #f87171; }
+  #clock-panel.hidden { display: none; }
   #help-text {
     font-size: 11px; color: #555; text-align: center;
     padding: 4px 0;
@@ -98,12 +115,38 @@
 
   <div class="panel">
     <div class="depth-row">
+      <label for="time-select">Time:</label>
+      <select id="time-select">
+        <option value="60,0">Bullet 1+0</option>
+        <option value="120,1">Bullet 2+1</option>
+        <option value="180,2" selected>Blitz 3+2</option>
+        <option value="300,3">Blitz 5+3</option>
+        <option value="600,5">Rapid 10+5</option>
+        <option value="900,10">Rapid 15+10</option>
+        <option value="0,0">Unlimited</option>
+      </select>
+    </div>
+    <div class="depth-row" style="margin-top:8px">
       <label for="depth-select">Depth:</label>
       <select id="depth-select">
         <option value="10">10 (fast)</option>
         <option value="15" selected>15</option>
         <option value="20">20 (strong)</option>
       </select>
+    </div>
+  </div>
+
+  <div class="panel" id="clock-panel">
+    <h3>Clock</h3>
+    <div class="clock-row">
+      <div class="clock-side">
+        <div class="clock-label" id="clock-label-top">Engine</div>
+        <div class="clock-time" id="clock-top">3:00</div>
+      </div>
+      <div class="clock-side">
+        <div class="clock-label" id="clock-label-bottom">You</div>
+        <div class="clock-time" id="clock-bottom">3:00</div>
+      </div>
     </div>
   </div>
 
@@ -1028,8 +1071,27 @@ document.getElementById('btn-undo').addEventListener('click', () => {
 document.getElementById('btn-swap').addEventListener('click', () => {
   if (thinking) return;
   playerColor = playerColor === 'w' ? 'b' : 'w';
+  rotateCameraToSide(playerColor);
   resetGame();
 });
+
+function rotateCameraToSide(color) {
+  const targetZ = color === 'w' ? 9 : -9;
+  const startPos = { x: camera.position.x, y: camera.position.y, z: camera.position.z };
+  const duration = 600;
+  const startTime = performance.now();
+
+  function tick(now) {
+    const t = Math.min((now - startTime) / duration, 1);
+    const ease = t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
+    camera.position.x = startPos.x + (0 - startPos.x) * ease;
+    camera.position.y = startPos.y + (9 - startPos.y) * ease;
+    camera.position.z = startPos.z + (targetZ - startPos.z) * ease;
+    controls.update();
+    if (t < 1) requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
+}
 
 document.getElementById('btn-resign').addEventListener('click', () => {
   if (thinking || game.game_over()) return;
