@@ -14,12 +14,14 @@ Open **http://localhost:8000** in your browser.
 
 ## Features
 
-- **True 3D board** — Three.js scene with orbit controls (drag to rotate, scroll to zoom), shadow-casting directional lighting, and a procedural linen tablecloth texture
+- **True 3D board** — Three.js scene with orbit controls (drag to rotate, scroll to zoom), shadow-casting directional lighting, and a procedural coarse-weave linen tablecloth texture with normal-mapped wrinkles
 - **Standing 3D pieces** — Lathe-turned geometry for each piece type; the knight has a composite horse head with ears and eyes
+- **Captured pieces** — Taken pieces are displayed on the tablecloth beside the board
 - **Chess clocks** — Bullet (1+0, 2+1), Blitz (3+2, 5+3), Rapid (10+5, 15+10), or Unlimited
 - **Configurable engine strength** — Depth 10 (fast) to 20 (strong)
 - **Sound effects** — Procedurally synthesized via Web Audio API: move, capture, check, castle, game over
 - **Play either side** — Swap Sides rotates the camera and lets Stockfish open as white
+- **Live evaluation** — Eval bar updates after each move, always oriented from the player's perspective
 - **Move indicators** — Green dots for valid moves, red rings for captures
 - **Animated moves** — Pieces arc through the air with eased motion
 - **Resign and Undo** — Full game controls in the sidebar

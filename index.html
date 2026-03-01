@@ -190,6 +190,7 @@ const pieceMeshes = new Map();   // square → mesh
 const squareMeshes = new Map();  // square → mesh
 let moveIndicators = [];
 let lastMoveHighlights = [];
+const capturedMeshes = [];  // meshes placed beside the board
 
 function getDepth() {
   return parseInt(document.getElementById('depth-select').value, 10);
@@ -369,27 +370,52 @@ function createClothTexture(size) {
   const ctx = canvas.getContext('2d');
 
   // Base linen color
-  ctx.fillStyle = '#c4a882';
+  ctx.fillStyle = '#b89868';
   ctx.fillRect(0, 0, size, size);
 
-  // Woven thread pattern — horizontal
-  for (let y = 0; y < size; y += 3) {
-    const brightness = 0.92 + Math.random() * 0.16;
-    ctx.fillStyle = `rgba(${Math.floor(180*brightness)}, ${Math.floor(155*brightness)}, ${Math.floor(120*brightness)}, 0.4)`;
-    ctx.fillRect(0, y, size, 1.5);
-  }
-  // Woven thread pattern — vertical
-  for (let x = 0; x < size; x += 3) {
-    const brightness = 0.90 + Math.random() * 0.18;
-    ctx.fillStyle = `rgba(${Math.floor(175*brightness)}, ${Math.floor(150*brightness)}, ${Math.floor(115*brightness)}, 0.35)`;
-    ctx.fillRect(x, 0, 1.5, size);
+  const THREAD = 8; // coarse thread spacing
+
+  // Thick woven horizontal threads with strong color variation
+  for (let y = 0; y < size; y += THREAD) {
+    const brightness = 0.78 + Math.random() * 0.44;
+    const r = Math.floor(170 * brightness);
+    const g = Math.floor(140 * brightness);
+    const b = Math.floor(100 * brightness);
+    ctx.fillStyle = `rgba(${r}, ${g}, ${b}, 0.6)`;
+    ctx.fillRect(0, y, size, THREAD * 0.55);
+    // Dark gap between threads
+    ctx.fillStyle = `rgba(80, 60, 40, 0.15)`;
+    ctx.fillRect(0, y + THREAD * 0.55, size, THREAD * 0.45);
   }
 
-  // Subtle organic noise for fabric grain
+  // Thick woven vertical threads with crosshatch effect
+  for (let x = 0; x < size; x += THREAD) {
+    const brightness = 0.75 + Math.random() * 0.50;
+    const r = Math.floor(165 * brightness);
+    const g = Math.floor(135 * brightness);
+    const b = Math.floor(95 * brightness);
+    ctx.fillStyle = `rgba(${r}, ${g}, ${b}, 0.5)`;
+    ctx.fillRect(x, 0, THREAD * 0.55, size);
+    // Dark gap
+    ctx.fillStyle = `rgba(70, 50, 35, 0.12)`;
+    ctx.fillRect(x + THREAD * 0.55, 0, THREAD * 0.45, size);
+  }
+
+  // Crosshatch pattern — alternating over/under at intersections
+  for (let y = 0; y < size; y += THREAD * 2) {
+    for (let x = 0; x < size; x += THREAD * 2) {
+      // Darken alternating cells for basket weave look
+      ctx.fillStyle = `rgba(60, 40, 25, 0.08)`;
+      ctx.fillRect(x, y, THREAD, THREAD);
+      ctx.fillRect(x + THREAD, y + THREAD, THREAD, THREAD);
+    }
+  }
+
+  // Strong organic noise for rough fabric grain
   const imgData = ctx.getImageData(0, 0, size, size);
   const d = imgData.data;
   for (let i = 0; i < d.length; i += 4) {
-    const noise = (Math.random() - 0.5) * 14;
+    const noise = (Math.random() - 0.5) * 28;
     d[i]   = Math.min(255, Math.max(0, d[i] + noise));
     d[i+1] = Math.min(255, Math.max(0, d[i+1] + noise));
     d[i+2] = Math.min(255, Math.max(0, d[i+2] + noise));
@@ -404,21 +430,23 @@ function createClothNormalMap(size) {
   canvas.width = canvas.height = size;
   const ctx = canvas.getContext('2d');
 
+  const THREAD = 8;
+
   // Neutral normal (pointing up = 128,128,255)
   ctx.fillStyle = 'rgb(128,128,255)';
   ctx.fillRect(0, 0, size, size);
 
-  // Soft wrinkles / folds
-  for (let i = 0; i < 12; i++) {
+  // Bold wrinkles / folds — more and stronger
+  for (let i = 0; i < 20; i++) {
     const x = Math.random() * size;
     const y = Math.random() * size;
     const angle = Math.random() * Math.PI;
-    const len = 80 + Math.random() * 200;
-    const nx = Math.floor(128 + Math.cos(angle) * 30);
-    const ny = Math.floor(128 + Math.sin(angle) * 30);
-    ctx.strokeStyle = `rgb(${nx},${ny},240)`;
-    ctx.lineWidth = 15 + Math.random() * 25;
-    ctx.globalAlpha = 0.15 + Math.random() * 0.15;
+    const len = 100 + Math.random() * 300;
+    const nx = Math.floor(128 + Math.cos(angle) * 55);
+    const ny = Math.floor(128 + Math.sin(angle) * 55);
+    ctx.strokeStyle = `rgb(${nx},${ny},220)`;
+    ctx.lineWidth = 20 + Math.random() * 40;
+    ctx.globalAlpha = 0.2 + Math.random() * 0.2;
     ctx.beginPath();
     ctx.moveTo(x, y);
     ctx.quadraticCurveTo(
@@ -431,20 +459,20 @@ function createClothNormalMap(size) {
   }
   ctx.globalAlpha = 1.0;
 
-  // Fine weave bumps
-  for (let y = 0; y < size; y += 3) {
-    const v = 125 + Math.floor(Math.random() * 6);
-    ctx.strokeStyle = `rgb(128,${v},252)`;
-    ctx.lineWidth = 1;
-    ctx.globalAlpha = 0.3;
-    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(size, y); ctx.stroke();
+  // Coarse weave bumps — thick thread ridges
+  for (let y = 0; y < size; y += THREAD) {
+    const v = 118 + Math.floor(Math.random() * 20);
+    ctx.strokeStyle = `rgb(128,${v},245)`;
+    ctx.lineWidth = THREAD * 0.4;
+    ctx.globalAlpha = 0.5;
+    ctx.beginPath(); ctx.moveTo(0, y + THREAD * 0.25); ctx.lineTo(size, y + THREAD * 0.25); ctx.stroke();
   }
-  for (let x = 0; x < size; x += 3) {
-    const v = 125 + Math.floor(Math.random() * 6);
-    ctx.strokeStyle = `rgb(${v},128,252)`;
-    ctx.lineWidth = 1;
-    ctx.globalAlpha = 0.3;
-    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, size); ctx.stroke();
+  for (let x = 0; x < size; x += THREAD) {
+    const v = 118 + Math.floor(Math.random() * 20);
+    ctx.strokeStyle = `rgb(${v},128,245)`;
+    ctx.lineWidth = THREAD * 0.4;
+    ctx.globalAlpha = 0.5;
+    ctx.beginPath(); ctx.moveTo(x + THREAD * 0.25, 0); ctx.lineTo(x + THREAD * 0.25, size); ctx.stroke();
   }
   ctx.globalAlpha = 1.0;
 
@@ -727,6 +755,75 @@ function placePiecesFromFEN() {
       mesh.userData.isPiece = true;
       scene.add(mesh);
       pieceMeshes.set(sq, mesh);
+    }
+  }
+  placeCapturedPieces();
+}
+
+// ── Captured pieces beside the board ──────────────────────────────
+const PIECE_ORDER = { q: 0, r: 1, b: 2, n: 3, p: 4 };
+const STARTING_PIECES = { p: 8, r: 2, n: 2, b: 2, q: 1, k: 1 };
+
+function getCapturedPieces() {
+  // Count pieces on the board
+  const onBoard = { w: { p:0, r:0, n:0, b:0, q:0, k:0 }, b: { p:0, r:0, n:0, b:0, q:0, k:0 } };
+  const board = game.board();
+  for (let r = 0; r < 8; r++) {
+    for (let c = 0; c < 8; c++) {
+      const piece = board[r][c];
+      if (piece) onBoard[piece.color][piece.type]++;
+    }
+  }
+  // Diff against starting count
+  const captured = { w: [], b: [] }; // w = white pieces that were captured, b = black pieces captured
+  for (const color of ['w', 'b']) {
+    for (const type of Object.keys(STARTING_PIECES)) {
+      if (type === 'k') continue;
+      const missing = STARTING_PIECES[type] - onBoard[color][type];
+      for (let i = 0; i < missing; i++) {
+        captured[color].push(type);
+      }
+    }
+    // Sort by value
+    captured[color].sort((a, b) => PIECE_ORDER[a] - PIECE_ORDER[b]);
+  }
+  return captured;
+}
+
+function clearCapturedMeshes() {
+  for (const m of capturedMeshes) scene.remove(m);
+  capturedMeshes.length = 0;
+}
+
+function placeCapturedPieces() {
+  clearCapturedMeshes();
+  const captured = getCapturedPieces();
+  const tableY = BOARD_Y - BOARD_THICK / 2 - 0.01;
+  const scale = 0.6;
+
+  // White pieces captured (by black) → place on the right side of the board (+x)
+  // Black pieces captured (by white) → place on the left side of the board (-x)
+  for (const color of ['w', 'b']) {
+    const pieces = captured[color];
+    if (pieces.length === 0) continue;
+
+    // Place along the side of the board
+    const sideX = color === 'b' ? -5.2 : 5.2;
+    const startZ = 3.5;
+
+    for (let i = 0; i < pieces.length; i++) {
+      const type = pieces[i];
+      const mesh = createPieceMesh(type, color);
+      mesh.scale.set(scale, scale, scale);
+
+      const col = Math.floor(i / 8);
+      const row = i % 8;
+      const x = sideX + (color === 'b' ? -col * 0.6 : col * 0.6);
+      const z = startZ - row * 0.85;
+
+      mesh.position.set(x, tableY, z);
+      scene.add(mesh);
+      capturedMeshes.push(mesh);
     }
   }
 }
@@ -1109,15 +1206,16 @@ async function askStockfish() {
 function updateEval(ev) {
   const display = document.getElementById('eval-display');
   const label = document.getElementById('eval-label');
-  // Stockfish returns eval from white's perspective; flip if player is black
-  const flip = playerColor === 'w' ? 1 : -1;
+  // Server evaluates AFTER the engine's move, so it's the player's turn.
+  // Stockfish returns eval from the side-to-move's perspective.
+  // Positive = good for the player.
   if (ev.type === 'mate') {
-    const val = ev.value * flip;
+    const val = ev.value;
     display.textContent = val > 0 ? `M${val}` : `-M${Math.abs(val)}`;
     display.style.color = val > 0 ? '#4ade80' : '#f87171';
     label.textContent = val > 0 ? 'You mate' : 'Engine mates';
   } else {
-    const cp = (ev.value / 100) * flip;
+    const cp = ev.value / 100;
     display.textContent = (cp >= 0 ? '+' : '') + cp.toFixed(1);
     display.style.color = cp > 0.5 ? '#4ade80' : cp < -0.5 ? '#f87171' : '#e0e0e0';
     label.textContent = cp > 0.5 ? 'You are better' : cp < -0.5 ? 'Engine is better' : 'Equal position';
@@ -1162,6 +1260,7 @@ function resetGame() {
   selectedSquare = null;
   clearMoveIndicators();
   clearLastMoveHighlights();
+  clearCapturedMeshes();
   placePiecesFromFEN();
   document.getElementById('eval-display').textContent = '0.0';
   document.getElementById('eval-display').style.color = '#e0e0e0';

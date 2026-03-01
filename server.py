@@ -116,6 +116,11 @@ def get_move(req: MoveRequest):
     sf.set_depth(depth)
 
     best_move = sf.get_best_move()
+
+    # Evaluate the position AFTER the engine's move so the UI shows
+    # the correct assessment of what's on the board.
+    if best_move:
+        sf.make_moves_from_current_position([best_move])
     evaluation = sf.get_evaluation()
 
     return MoveResponse(best_move=best_move, evaluation=evaluation)

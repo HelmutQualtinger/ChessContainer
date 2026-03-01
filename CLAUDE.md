@@ -47,7 +47,7 @@ server.py (FastAPI backend)
 ## Key Files
 
 - **server.py** — FastAPI app with Stockfish subprocess managed via lifespan. Pydantic models for request/response. Engine configured via env vars.
-- **index.html** — Self-contained ~1100-line HTML/CSS/JS module. Includes 3D scene setup, piece geometry definitions (LatheGeometry profiles + composite knight), raycasting click interaction, move animation, chess clocks, and procedural audio.
+- **index.html** — Self-contained ~1300-line HTML/CSS/JS module. Includes 3D scene setup, piece geometry definitions (LatheGeometry profiles + composite knight), raycasting click interaction, move animation, chess clocks, captured pieces display, and procedural audio.
 - **Dockerfile** — Installs stockfish from apt, pip installs requirements, copies source, runs uvicorn.
 - **docker-compose.yml** — Single `stockfish-server` service on port 8000 with configurable env vars.
 
@@ -69,7 +69,7 @@ The frontend is a single ES module (`<script type="module">`) using import maps 
 1. **Game state** — `playerColor`, `moveHistory`, clock state, piece/square mesh maps
 2. **Chess clock** — `initClocks()`, `startClock()`, `stopClockAndIncrement()`, `tickClock()`, `flagged()`
 3. **Three.js scene** — Renderer, camera, OrbitControls, lighting (directional + fill + rim + ambient)
-4. **Board** — Procedural cloth texture (canvas), wooden frame, 8×8 square meshes
+4. **Board** — Procedural coarse-weave cloth texture (canvas + normal map), wooden frame, 8×8 square meshes
 5. **Piece geometry** — `PIECE_PROFILES` dict with LatheGeometry points per piece type; knight is a composite Group (base + extruded neck/head + cone ears + sphere eyes)
 6. **Interaction** — Raycaster click → select piece → show move indicators → click target → `makePlayerMove()`
 7. **Sound** — `playSound(type)` synthesizes audio buffers for: move, capture, check, castle, gameover, select
@@ -77,4 +77,8 @@ The frontend is a single ES module (`<script type="module">`) using import maps 
 
 ## Stockfish Evaluation Convention
 
-The Python `stockfish` library returns evaluation from **white's perspective** (positive = white is better). The frontend flips the sign when `playerColor === 'b'` so positive always means good for the player.
+The Python `stockfish` library returns evaluation from the **side-to-move's perspective**. The server evaluates the position AFTER making the engine's move (so it's from the player's perspective). The frontend displays the value directly — positive always means good for the player, no sign flip needed.
+
+## Captured Pieces
+
+`getCapturedPieces()` diffs current board material against starting counts. `placeCapturedPieces()` renders scaled-down (0.6) piece meshes on the tablecloth beside the board at table surface height.
