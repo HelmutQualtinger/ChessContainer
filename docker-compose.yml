@@ -1,0 +1,10 @@
+services:
+  stockfish-server:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      STOCKFISH_PATH: /usr/games/stockfish
+      STOCKFISH_DEPTH: ${STOCKFISH_DEPTH:-20}
+      STOCKFISH_THREADS: ${STOCKFISH_THREADS:-2}
+      STOCKFISH_HASH: ${STOCKFISH_HASH:-256}

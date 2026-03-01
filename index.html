@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Chess vs Stockfish</title>
+<link rel="stylesheet"
+      href="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.css">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: #1a1a2e;
+    color: #e0e0e0;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    min-height: 100vh;
+    padding: 24px;
+  }
+  .container {
+    display: flex;
+    gap: 24px;
+    align-items: flex-start;
+  }
+  .board-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+  }
+  #board { width: 480px; }
+  .sidebar {
+    width: 260px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  .panel {
+    background: #16213e;
+    border-radius: 8px;
+    padding: 16px;
+  }
+  .panel h3 {
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: #888;
+    margin-bottom: 8px;
+  }
+  #status {
+    font-size: 18px;
+    font-weight: 600;
+    text-align: center;
+    padding: 12px;
+    border-radius: 8px;
+    background: #16213e;
+  }
+  #eval-display {
+    font-size: 28px;
+    font-weight: 700;
+    text-align: center;
+  }
+  .eval-label { font-size: 12px; color: #888; }
+  #move-list {
+    max-height: 320px;
+    overflow-y: auto;
+    font-family: 'Courier New', monospace;
+    font-size: 13px;
+    line-height: 1.8;
+  }
+  #move-list .move-num { color: #666; margin-right: 4px; }
+  #move-list .white-move { color: #f0f0f0; }
+  #move-list .black-move { color: #aaa; }
+  .buttons { display: flex; gap: 8px; }
+  .btn {
+    flex: 1;
+    padding: 10px 16px;
+    border: none;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+  .btn-primary { background: #0f3460; color: #e0e0e0; }
+  .btn-primary:hover { background: #1a4a7a; }
+  .btn-danger { background: #5c2030; color: #e0e0e0; }
+  .btn-danger:hover { background: #7a2a40; }
+  .thinking { animation: pulse 1s infinite; }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.5; } }
+
+  .highlight-legal {
+    background: radial-gradient(circle, rgba(0,0,0,0.25) 25%, transparent 25%);
+    border-radius: 50%;
+  }
+  .highlight-from {
+    box-shadow: inset 0 0 0 4px rgba(255,255,100,0.6);
+  }
+
+  /* depth selector */
+  .depth-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .depth-row label { font-size: 13px; color: #aaa; }
+  .depth-row select {
+    flex: 1;
+    padding: 4px 8px;
+    border-radius: 4px;
+    border: 1px solid #333;
+    background: #0f3460;
+    color: #e0e0e0;
+    font-size: 13px;
+  }
+</style>
+</head>
+<body>
+
+<div class="container">
+  <div class="board-wrap">
+    <div id="status">Your turn — White to move</div>
+    <div id="board"></div>
+    <div class="buttons">
+      <button class="btn btn-primary" onclick="newGame()">New Game</button>
+      <button class="btn btn-primary" onclick="undoMove()">Undo</button>
+    </div>
+  </div>
+
+  <div class="sidebar">
+    <div class="panel">
+      <h3>Evaluation</h3>
+      <div id="eval-display">0.0</div>
+      <div class="eval-label" style="text-align:center" id="eval-label">Equal position</div>
+    </div>
+
+    <div class="panel">
+      <div class="depth-row">
+        <label for="depth-select">Depth:</label>
+        <select id="depth-select">
+          <option value="10">10 (fast)</option>
+          <option value="15" selected>15</option>
+          <option value="20">20 (strong)</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h3>Moves</h3>
+      <div id="move-list"></div>
+    </div>
+  </div>
+</div>
+
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
+<script>
+const game = new Chess();
+let board = null;
+let thinking = false;
+let moveHistory = [];      // SAN moves for display
+let uciMoveHistory = [];   // UCI moves for the API
+
+function getDepth() {
+  return parseInt(document.getElementById('depth-select').value, 10);
+}
+
+// ── Board config ──────────────────────────────────────────────────
+function onDragStart(source, piece) {
+  if (thinking) return false;
+  if (game.game_over()) return false;
+  if (game.turn() === 'b') return false;
+  if (piece.search(/^b/) !== -1) return false;
+}
+
+function onDrop(source, target) {
+  removeHighlights();
+
+  const move = game.move({
+    from: source,
+    to: target,
+    promotion: 'q'
+  });
+
+  if (move === null) return 'snapback';
+
+  moveHistory.push(move.san);
+  uciMoveHistory.push(move.from + move.to + (move.promotion || ''));
+  updateUI();
+  askStockfish();
+}
+
+function onSnapEnd() {
+  board.position(game.fen());
+}
+
+function onMouseoverSquare(square) {
+  if (thinking || game.game_over() || game.turn() === 'b') return;
+
+  const moves = game.moves({ square: square, verbose: true });
+  if (moves.length === 0) return;
+
+  highlightSquare(square, 'highlight-from');
+  for (const m of moves) {
+    highlightSquare(m.to, 'highlight-legal');
+  }
+}
+
+function onMouseoutSquare() {
+  removeHighlights();
+}
+
+function highlightSquare(sq, cls) {
+  const el = document.querySelector(`#board .square-${sq}`);
+  if (el) el.classList.add(cls);
+}
+
+function removeHighlights() {
+  document.querySelectorAll('#board .highlight-legal, #board .highlight-from')
+    .forEach(el => {
+      el.classList.remove('highlight-legal');
+      el.classList.remove('highlight-from');
+    });
+}
+
+const boardConfig = {
+  draggable: true,
+  position: 'start',
+  pieceTheme: 'https://chessboardjs.com/img/chesspieces/alpha/{piece}.png',
+  onDragStart: onDragStart,
+  onDrop: onDrop,
+  onSnapEnd: onSnapEnd,
+  onMouseoverSquare: onMouseoverSquare,
+  onMouseoutSquare: onMouseoutSquare,
+};
+
+board = Chessboard('board', boardConfig);
+
+// ── Stockfish interaction ─────────────────────────────────────────
+async function askStockfish() {
+  if (game.game_over()) return;
+
+  thinking = true;
+  setStatus('<span class="thinking">Stockfish is thinking...</span>');
+
+  try {
+    const resp = await fetch('/move', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        fen: game.fen(),
+        depth: getDepth()
+      })
+    });
+
+    const data = await resp.json();
+
+    if (data.best_move) {
+      const from = data.best_move.substring(0, 2);
+      const to = data.best_move.substring(2, 4);
+      const promo = data.best_move.length > 4 ? data.best_move[4] : undefined;
+
+      const move = game.move({ from, to, promotion: promo });
+      if (move) {
+        moveHistory.push(move.san);
+        uciMoveHistory.push(data.best_move);
+        board.position(game.fen());
+      }
+    }
+
+    if (data.evaluation) {
+      updateEval(data.evaluation);
+    }
+  } catch (err) {
+    console.error('Stockfish error:', err);
+  }
+
+  thinking = false;
+  updateUI();
+}
+
+// ── UI updates ────────────────────────────────────────────────────
+function updateEval(ev) {
+  const display = document.getElementById('eval-display');
+  const label = document.getElementById('eval-label');
+
+  if (ev.type === 'mate') {
+    const val = ev.value;
+    display.textContent = val > 0 ? `M${val}` : `-M${Math.abs(val)}`;
+    display.style.color = val > 0 ? '#4ade80' : '#f87171';
+    label.textContent = val > 0 ? 'White mates' : 'Black mates';
+  } else {
+    const cp = ev.value / 100;
+    display.textContent = (cp >= 0 ? '+' : '') + cp.toFixed(1);
+    if (cp > 0.5) {
+      display.style.color = '#4ade80';
+      label.textContent = 'White is better';
+    } else if (cp < -0.5) {
+      display.style.color = '#f87171';
+      label.textContent = 'Black is better';
+    } else {
+      display.style.color = '#e0e0e0';
+      label.textContent = 'Equal position';
+    }
+  }
+}
+
+function setStatus(html) {
+  document.getElementById('status').innerHTML = html;
+}
+
+function updateUI() {
+  // Status
+  if (game.in_checkmate()) {
+    const winner = game.turn() === 'w' ? 'Black' : 'White';
+    setStatus(`Checkmate — ${winner} wins!`);
+  } else if (game.in_stalemate()) {
+    setStatus('Stalemate — Draw');
+  } else if (game.in_threefold_repetition()) {
+    setStatus('Threefold repetition — Draw');
+  } else if (game.insufficient_material()) {
+    setStatus('Insufficient material — Draw');
+  } else if (game.in_draw()) {
+    setStatus('Draw');
+  } else if (game.in_check()) {
+    const who = game.turn() === 'w' ? 'White' : 'Black';
+    setStatus(`${who} is in check!`);
+  } else {
+    const who = game.turn() === 'w' ? 'White' : 'Black';
+    const yours = game.turn() === 'w' ? 'Your turn' : 'Stockfish thinking...';
+    setStatus(`${yours} — ${who} to move`);
+  }
+
+  // Move list
+  const ml = document.getElementById('move-list');
+  let html = '';
+  for (let i = 0; i < moveHistory.length; i += 2) {
+    const num = Math.floor(i / 2) + 1;
+    html += `<span class="move-num">${num}.</span>`;
+    html += `<span class="white-move">${moveHistory[i]}</span> `;
+    if (moveHistory[i + 1]) {
+      html += `<span class="black-move">${moveHistory[i + 1]}</span> `;
+    }
+  }
+  ml.innerHTML = html;
+  ml.scrollTop = ml.scrollHeight;
+}
+
+// ── Controls ──────────────────────────────────────────────────────
+function newGame() {
+  game.reset();
+  board.start();
+  moveHistory = [];
+  uciMoveHistory = [];
+  thinking = false;
+  document.getElementById('eval-display').textContent = '0.0';
+  document.getElementById('eval-display').style.color = '#e0e0e0';
+  document.getElementById('eval-label').textContent = 'Equal position';
+  updateUI();
+}
+
+function undoMove() {
+  if (thinking || moveHistory.length < 2) return;
+  // Undo both Stockfish's and player's move
+  game.undo();
+  game.undo();
+  moveHistory.splice(-2);
+  uciMoveHistory.splice(-2);
+  board.position(game.fen());
+  updateUI();
+}
+
+// Initial render
+updateUI();
+</script>
+</body>
+</html>
