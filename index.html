@@ -191,6 +191,8 @@ const squareMeshes = new Map();  // square → mesh
 let moveIndicators = [];
 let lastMoveHighlights = [];
 const capturedMeshes = [];  // meshes placed beside the board
+let lastMovedSquare = null;  // square name of the piece that just moved
+let auraGroup = null;        // golden glow around last moved piece
 
 function getDepth() {
   return parseInt(document.getElementById('depth-select').value, 10);
@@ -307,8 +309,8 @@ function formatTime(ms) {
 
 // ── Three.js setup ────────────────────────────────────────────────
 const wrap = document.getElementById('canvas-wrap');
-const renderer = new THREE.WebGLRenderer({ antialias: true });
-renderer.setPixelRatio(window.devicePixelRatio);
+const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.setSize(wrap.clientWidth, wrap.clientHeight);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -319,6 +321,26 @@ wrap.appendChild(renderer.domElement);
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x1a1510);
 scene.fog = new THREE.Fog(0x1a1510, 14, 28);
+
+// Environment map for glass reflections
+const pmremGen = new THREE.PMREMGenerator(renderer);
+pmremGen.compileEquirectangularShader();
+const envScene = new THREE.Scene();
+envScene.background = new THREE.Color(0x2a2218);
+const envLight1 = new THREE.Mesh(
+  new THREE.SphereGeometry(1, 16, 8),
+  new THREE.MeshBasicMaterial({ color: 0xfff8e8 })
+);
+envLight1.position.set(3, 5, 3);
+envScene.add(envLight1);
+const envLight2 = new THREE.Mesh(
+  new THREE.SphereGeometry(0.5, 16, 8),
+  new THREE.MeshBasicMaterial({ color: 0xd4c8b0 })
+);
+envLight2.position.set(-4, 3, -2);
+envScene.add(envLight2);
+const envRT = pmremGen.fromScene(envScene, 0.04);
+scene.environment = envRT.texture;
 
 const camera = new THREE.PerspectiveCamera(40, wrap.clientWidth / wrap.clientHeight, 0.1, 100);
 camera.position.set(0, 9, 9);
@@ -340,7 +362,7 @@ scene.add(new THREE.AmbientLight(0xffffff, 0.5));
 const dirLight = new THREE.DirectionalLight(0xfff5e6, 1.8);
 dirLight.position.set(4, 12, 6);
 dirLight.castShadow = true;
-dirLight.shadow.mapSize.set(2048, 2048);
+dirLight.shadow.mapSize.set(1024, 1024);
 dirLight.shadow.camera.left = -6;
 dirLight.shadow.camera.right = 6;
 dirLight.shadow.camera.top = 6;
@@ -479,12 +501,12 @@ function createClothNormalMap(size) {
   return canvas;
 }
 
-const clothColorCanvas = createClothTexture(512);
+const clothColorCanvas = createClothTexture(256);
 const clothColorTex = new THREE.CanvasTexture(clothColorCanvas);
 clothColorTex.wrapS = clothColorTex.wrapT = THREE.RepeatWrapping;
 clothColorTex.repeat.set(4, 4);
 
-const clothNormalCanvas = createClothNormalMap(512);
+const clothNormalCanvas = createClothNormalMap(256);
 const clothNormalTex = new THREE.CanvasTexture(clothNormalCanvas);
 clothNormalTex.wrapS = clothNormalTex.wrapT = THREE.RepeatWrapping;
 clothNormalTex.repeat.set(4, 4);
@@ -549,9 +571,70 @@ function squareToColRow(sq) {
   return [sq.charCodeAt(0) - 97, parseInt(sq[1]) - 1];
 }
 
+// ── Board edge labels (a-h, 1-8) — gold on frame ─────────────────
+const FILES = ['a','b','c','d','e','f','g','h'];
+const RANKS = ['1','2','3','4','5','6','7','8'];
+const labelY = BOARD_Y + BOARD_THICK / 2 + 0.012;
+
+function makeGoldLabel(text) {
+  const size = 128;
+  const canvas = document.createElement('canvas');
+  canvas.width = canvas.height = size;
+  const ctx = canvas.getContext('2d');
+  // Gold gradient text
+  ctx.font = 'bold 90px serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  const grad = ctx.createLinearGradient(0, 20, 0, 108);
+  grad.addColorStop(0, '#f5d882');
+  grad.addColorStop(0.3, '#d4a017');
+  grad.addColorStop(0.5, '#fbe88a');
+  grad.addColorStop(0.7, '#c8920e');
+  grad.addColorStop(1, '#a67c00');
+  ctx.fillStyle = grad;
+  ctx.fillText(text, size / 2, size / 2);
+  // Subtle dark outline for depth
+  ctx.strokeStyle = 'rgba(80, 50, 0, 0.5)';
+  ctx.lineWidth = 2;
+  ctx.strokeText(text, size / 2, size / 2);
+
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.minFilter = THREE.LinearFilter;
+  const geo = new THREE.PlaneGeometry(0.4, 0.4);
+  const mat = new THREE.MeshStandardMaterial({
+    map: tex, transparent: true, alphaTest: 0.05,
+    roughness: 0.3, metalness: 0.8,
+    emissive: 0x3a2800, emissiveIntensity: 0.2
+  });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.rotation.x = -Math.PI / 2;
+  return mesh;
+}
+
+// File labels (a-h) along front and back edges
+for (let c = 0; c < 8; c++) {
+  const x = (c - 3.5) * SQ;
+  const lb = makeGoldLabel(FILES[c]);
+  lb.position.set(x, labelY, 4.15 * SQ);
+  scene.add(lb);
+  const lt = makeGoldLabel(FILES[c]);
+  lt.position.set(x, labelY, -4.15 * SQ);
+  scene.add(lt);
+}
+// Rank labels (1-8) along left and right edges
+for (let r = 0; r < 8; r++) {
+  const z = (3.5 - r) * SQ;
+  const ll = makeGoldLabel(RANKS[r]);
+  ll.position.set(-4.15 * SQ, labelY, z);
+  scene.add(ll);
+  const lr = makeGoldLabel(RANKS[r]);
+  lr.position.set(4.15 * SQ, labelY, z);
+  scene.add(lr);
+}
+
 // ── Piece geometry profiles (LatheGeometry) ───────────────────────
 const V2 = (x, y) => new THREE.Vector2(x, y);
-const SEGMENTS = 28;
+const SEGMENTS = 18;
 
 const PIECE_PROFILES = {
   p: [
@@ -691,18 +774,38 @@ function createKingCross(material) {
   return group;
 }
 
-// ── Piece materials ───────────────────────────────────────────────
-const whiteMat = new THREE.MeshStandardMaterial({
-  color: 0xf2e6d0, roughness: 0.25, metalness: 0.05
+// ── Piece materials (glass) ───────────────────────────────────────
+const whiteMat = new THREE.MeshPhysicalMaterial({
+  color: 0xddeeff, roughness: 0.05, metalness: 0.0,
+  transmission: 0.85, thickness: 0.8, ior: 1.5,
+  transparent: true, opacity: 0.9,
+  clearcoat: 1.0, clearcoatRoughness: 0.05,
+  envMapIntensity: 1.5, side: THREE.DoubleSide
 });
-const blackMat = new THREE.MeshStandardMaterial({
-  color: 0x1c1c1c, roughness: 0.3, metalness: 0.1
+const blackMat = new THREE.MeshPhysicalMaterial({
+  color: 0x1a1a2e, roughness: 0.05, metalness: 0.0,
+  transmission: 0.7, thickness: 0.8, ior: 1.5,
+  transparent: true, opacity: 0.88,
+  clearcoat: 1.0, clearcoatRoughness: 0.05,
+  attenuationColor: new THREE.Color(0x0a0a1e), attenuationDistance: 0.5,
+  envMapIntensity: 1.5, side: THREE.DoubleSide
 });
-const whiteSelectedMat = new THREE.MeshStandardMaterial({
-  color: 0xf2e6d0, roughness: 0.25, metalness: 0.05, emissive: 0x444400, emissiveIntensity: 0.8
+const whiteSelectedMat = new THREE.MeshPhysicalMaterial({
+  color: 0xddeeff, roughness: 0.05, metalness: 0.0,
+  transmission: 0.85, thickness: 0.8, ior: 1.5,
+  transparent: true, opacity: 0.9,
+  clearcoat: 1.0, clearcoatRoughness: 0.05,
+  emissive: 0x888822, emissiveIntensity: 0.6,
+  envMapIntensity: 1.5, side: THREE.DoubleSide
 });
-const blackSelectedMat = new THREE.MeshStandardMaterial({
-  color: 0x1c1c1c, roughness: 0.3, metalness: 0.1, emissive: 0x444400, emissiveIntensity: 0.8
+const blackSelectedMat = new THREE.MeshPhysicalMaterial({
+  color: 0x1a1a2e, roughness: 0.05, metalness: 0.0,
+  transmission: 0.7, thickness: 0.8, ior: 1.5,
+  transparent: true, opacity: 0.88,
+  clearcoat: 1.0, clearcoatRoughness: 0.05,
+  emissive: 0x888822, emissiveIntensity: 0.6,
+  attenuationColor: new THREE.Color(0x0a0a1e), attenuationDistance: 0.5,
+  envMapIntensity: 1.5, side: THREE.DoubleSide
 });
 
 function createPieceMesh(type, color) {
@@ -928,7 +1031,7 @@ function selectPiece(sq) {
     const isCapture = move.captured || move.flags.includes('e');
     let indicator;
     if (isCapture) {
-      const ringGeo = new THREE.RingGeometry(0.32, 0.44, 32);
+      const ringGeo = new THREE.RingGeometry(0.32, 0.44, 20);
       indicator = new THREE.Mesh(ringGeo, captureMat);
     } else {
       const dotGeo = new THREE.CircleGeometry(0.15, 24);
@@ -979,6 +1082,61 @@ function highlightLastMove(from, to) {
     scene.add(mesh);
     lastMoveHighlights.push(mesh);
   }
+  updateAura(to);
+}
+
+// ── Golden aura on last moved piece ───────────────────────────────
+function createAura() {
+  const group = new THREE.Group();
+
+  // Glowing ring on the ground around the piece
+  const ringGeo = new THREE.RingGeometry(0.32, 0.44, 24);
+  const ringMat = new THREE.MeshBasicMaterial({
+    color: 0xffd700, transparent: true, opacity: 0.6,
+    side: THREE.DoubleSide, depthWrite: false
+  });
+  const ring = new THREE.Mesh(ringGeo, ringMat);
+  ring.rotation.x = -Math.PI / 2;
+  ring.position.y = BOARD_Y + BOARD_THICK / 2 + 0.015;
+  ring.name = 'auraRing';
+  group.add(ring);
+
+  // Outer soft glow ring
+  const outerGeo = new THREE.RingGeometry(0.40, 0.58, 24);
+  const outerMat = new THREE.MeshBasicMaterial({
+    color: 0xffd700, transparent: true, opacity: 0.2,
+    side: THREE.DoubleSide, depthWrite: false
+  });
+  const outer = new THREE.Mesh(outerGeo, outerMat);
+  outer.rotation.x = -Math.PI / 2;
+  outer.position.y = BOARD_Y + BOARD_THICK / 2 + 0.014;
+  outer.name = 'auraOuter';
+  group.add(outer);
+
+  // Point light for golden illumination on the piece
+  const light = new THREE.PointLight(0xffd700, 1.5, 2.5, 2);
+  light.position.y = BOARD_Y + BOARD_THICK / 2 + 0.6;
+  light.name = 'auraLight';
+  group.add(light);
+
+  group.visible = false;
+  scene.add(group);
+  return group;
+}
+
+auraGroup = createAura();
+// Cache aura children for fast render-loop access
+const auraRing = auraGroup.getObjectByName('auraRing');
+const auraOuter = auraGroup.getObjectByName('auraOuter');
+const auraLight = auraGroup.getObjectByName('auraLight');
+
+function updateAura(targetSquare) {
+  lastMovedSquare = targetSquare;
+  if (!targetSquare || !auraGroup) { auraGroup.visible = false; return; }
+  const [c, r] = squareToColRow(targetSquare);
+  const pos = squareToWorld(c, r);
+  auraGroup.position.set(pos.x, 0, pos.z);
+  auraGroup.visible = true;
 }
 
 // ── Sound effects (Web Audio API — no files needed) ───────────────
@@ -1260,6 +1418,7 @@ function resetGame() {
   selectedSquare = null;
   clearMoveIndicators();
   clearLastMoveHighlights();
+  updateAura(null);
   clearCapturedMeshes();
   placePiecesFromFEN();
   document.getElementById('eval-display').textContent = '0.0';
@@ -1335,6 +1494,16 @@ window.addEventListener('resize', () => {
 function animate() {
   requestAnimationFrame(animate);
   controls.update();
+
+  // Pulse the golden aura
+  if (auraGroup && auraGroup.visible) {
+    const pulse = 0.5 + 0.5 * Math.sin(performance.now() * 0.002);
+    auraRing.material.opacity = 0.35 + 0.3 * pulse;
+    auraOuter.material.opacity = 0.1 + 0.15 * pulse;
+    auraOuter.scale.setScalar(1.0 + 0.08 * pulse);
+    auraLight.intensity = 1.0 + 0.8 * pulse;
+  }
+
   renderer.render(scene, camera);
 }
 
@@ -1342,6 +1511,10 @@ function animate() {
 placePiecesFromFEN();
 initClocks();
 updateUI();
+
+// Pre-compile all shaders so the first frames don't stutter
+renderer.compile(scene, camera);
+
 animate();
 if (playerColor === 'b') askStockfish();
 else startClock('w');
