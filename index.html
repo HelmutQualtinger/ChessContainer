@@ -195,6 +195,115 @@ function getDepth() {
   return parseInt(document.getElementById('depth-select').value, 10);
 }
 
+// ── Chess clock ───────────────────────────────────────────────────
+let clockW = 0;          // white's remaining ms
+let clockB = 0;          // black's remaining ms
+let increment = 0;       // increment in ms
+let clockRunning = null;  // 'w' or 'b' or null
+let clockInterval = null;
+let lastClockTick = 0;
+let unlimited = true;
+
+function getTimeControl() {
+  const val = document.getElementById('time-select').value;
+  const [sec, inc] = val.split(',').map(Number);
+  return { baseMs: sec * 1000, incMs: inc * 1000 };
+}
+
+function initClocks() {
+  const tc = getTimeControl();
+  clockW = tc.baseMs;
+  clockB = tc.baseMs;
+  increment = tc.incMs;
+  unlimited = tc.baseMs === 0;
+  clockRunning = null;
+  if (clockInterval) clearInterval(clockInterval);
+  clockInterval = null;
+
+  const panel = document.getElementById('clock-panel');
+  if (unlimited) {
+    panel.classList.add('hidden');
+  } else {
+    panel.classList.remove('hidden');
+    renderClocks();
+    // Start ticking
+    clockInterval = setInterval(tickClock, 100);
+  }
+}
+
+function startClock(color) {
+  if (unlimited) return;
+  clockRunning = color;
+  lastClockTick = performance.now();
+}
+
+function stopClockAndIncrement(color) {
+  if (unlimited) return;
+  // Deduct elapsed since last tick
+  if (clockRunning === color) {
+    const elapsed = performance.now() - lastClockTick;
+    if (color === 'w') clockW -= elapsed; else clockB -= elapsed;
+  }
+  // Add increment
+  if (color === 'w') clockW += increment; else clockB += increment;
+  clockRunning = null;
+  renderClocks();
+}
+
+function tickClock() {
+  if (!clockRunning || unlimited) return;
+  const now = performance.now();
+  const elapsed = now - lastClockTick;
+  lastClockTick = now;
+
+  if (clockRunning === 'w') {
+    clockW -= elapsed;
+    if (clockW <= 0) { clockW = 0; flagged('w'); }
+  } else {
+    clockB -= elapsed;
+    if (clockB <= 0) { clockB = 0; flagged('b'); }
+  }
+  renderClocks();
+}
+
+function flagged(color) {
+  clockRunning = null;
+  if (clockInterval) { clearInterval(clockInterval); clockInterval = null; }
+  playSound('gameover');
+  const loser = color === playerColor ? 'You' : 'Engine';
+  setStatus(`${loser} flagged — Time out!`);
+  thinking = true; // lock board
+}
+
+function renderClocks() {
+  const topColor = playerColor === 'w' ? 'b' : 'w';
+  const botColor = playerColor;
+  const topMs = topColor === 'w' ? clockW : clockB;
+  const botMs = botColor === 'w' ? clockW : clockB;
+
+  document.getElementById('clock-top').textContent = formatTime(topMs);
+  document.getElementById('clock-bottom').textContent = formatTime(botMs);
+  document.getElementById('clock-label-top').textContent = topColor === playerColor ? 'You' : 'Engine';
+  document.getElementById('clock-label-bottom').textContent = botColor === playerColor ? 'You' : 'Engine';
+
+  const topEl = document.getElementById('clock-top');
+  const botEl = document.getElementById('clock-bottom');
+
+  topEl.className = 'clock-time ' + (clockRunning === topColor ? (topMs < 30000 ? 'clock-danger' : 'clock-active') : 'clock-inactive');
+  botEl.className = 'clock-time ' + (clockRunning === botColor ? (botMs < 30000 ? 'clock-danger' : 'clock-active') : 'clock-inactive');
+}
+
+function formatTime(ms) {
+  if (ms < 0) ms = 0;
+  const totalSec = Math.ceil(ms / 1000);
+  const min = Math.floor(totalSec / 60);
+  const sec = totalSec % 60;
+  if (min >= 1) return `${min}:${sec.toString().padStart(2, '0')}`;
+  // Under 1 minute: show tenths
+  const tenths = Math.floor((ms % 1000) / 100);
+  return `0:${Math.floor(ms / 1000).toString().padStart(2, '0')}.${tenths}`;
+}
+
 // ── Three.js setup ────────────────────────────────────────────────
 const wrap = document.getElementById('canvas-wrap');
 const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -907,6 +1016,7 @@ function makePlayerMove(from, to) {
   deselectPiece();
   const move = game.move({ from, to, promotion: 'q' });
   if (!move) return;
+  stopClockAndIncrement(playerColor);
   moveHistory.push(move.san);
   highlightLastMove(from, to);
   const snd = soundForMove(move);
@@ -949,10 +1059,13 @@ function animatePieceMove(from, to, callback) {
   requestAnimationFrame(tick);
 }
 
+const engineColor = () => playerColor === 'w' ? 'b' : 'w';
+
 async function askStockfish() {
   if (game.game_over()) return;
   thinking = true;
   setStatus('<span class="thinking">Stockfish is thinking...</span>');
+  startClock(engineColor());
 
   try {
     const resp = await fetch('/move', {
@@ -968,6 +1081,7 @@ async function askStockfish() {
       const promo = data.best_move.length > 4 ? data.best_move[4] : undefined;
       const move = game.move({ from, to, promotion: promo });
       if (move) {
+        stopClockAndIncrement(engineColor());
         moveHistory.push(move.san);
         highlightLastMove(from, to);
         const snd = soundForMove(move);
@@ -978,6 +1092,7 @@ async function askStockfish() {
           updateUI();
           if (game.game_over()) { playSound('gameover'); }
           else if (game.in_check()) playSound('check');
+          else startClock(playerColor);
         });
         if (data.evaluation) updateEval(data.evaluation);
         return;
@@ -1051,9 +1166,14 @@ function resetGame() {
   document.getElementById('eval-display').textContent = '0.0';
   document.getElementById('eval-display').style.color = '#e0e0e0';
   document.getElementById('eval-label').textContent = 'Equal position';
+  initClocks();
   updateUI();
   // If player is black, Stockfish moves first
-  if (playerColor === 'b') askStockfish();
+  if (playerColor === 'b') {
+    askStockfish();
+  } else {
+    startClock('w');
+  }
 }
 
 document.getElementById('btn-new').addEventListener('click', resetGame);
@@ -1095,10 +1215,15 @@ function rotateCameraToSide(color) {
 
 document.getElementById('btn-resign').addEventListener('click', () => {
   if (thinking || game.game_over()) return;
+  clockRunning = null;
+  if (clockInterval) { clearInterval(clockInterval); clockInterval = null; }
   playSound('gameover');
   setStatus('You resigned — Engine wins!');
   thinking = true; // lock the board
 });
+
+// Re-init clocks when time control changes
+document.getElementById('time-select').addEventListener('change', resetGame);
 
 // ── Resize ────────────────────────────────────────────────────────
 window.addEventListener('resize', () => {
@@ -1116,9 +1241,11 @@ function animate() {
 
 // ── Init ──────────────────────────────────────────────────────────
 placePiecesFromFEN();
+initClocks();
 updateUI();
 animate();
 if (playerColor === 'b') askStockfish();
+else startClock('w');
 </script>
 </body>
 </html>
