@@ -3,245 +3,911 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Chess vs Stockfish</title>
-<link rel="stylesheet"
-      href="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.css">
+<title>3D Chess vs Stockfish</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    background: #1a1a2e;
+    background: #0d1117;
     color: #e0e0e0;
     display: flex;
-    justify-content: center;
-    align-items: flex-start;
-    min-height: 100vh;
-    padding: 24px;
+    height: 100vh;
+    overflow: hidden;
   }
-  .container {
-    display: flex;
-    gap: 24px;
-    align-items: flex-start;
+  #canvas-wrap {
+    flex: 1;
+    position: relative;
+    cursor: pointer;
   }
-  .board-wrap {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 12px;
-  }
-  #board { width: 480px; }
+  #canvas-wrap canvas { display: block; width: 100%; height: 100%; }
   .sidebar {
-    width: 260px;
+    width: 270px;
+    padding: 20px;
     display: flex;
     flex-direction: column;
-    gap: 16px;
+    gap: 14px;
+    background: #111820;
+    border-left: 1px solid #222;
+    overflow-y: auto;
   }
   .panel {
-    background: #16213e;
-    border-radius: 8px;
-    padding: 16px;
+    background: linear-gradient(145deg, #161b22, #1c2333);
+    border: 1px solid #30363d;
+    border-radius: 10px;
+    padding: 14px;
   }
   .panel h3 {
-    font-size: 13px;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-    color: #888;
-    margin-bottom: 8px;
+    font-size: 11px; text-transform: uppercase;
+    letter-spacing: 1.5px; color: #666; margin-bottom: 8px;
   }
   #status {
-    font-size: 18px;
-    font-weight: 600;
-    text-align: center;
-    padding: 12px;
-    border-radius: 8px;
-    background: #16213e;
+    font-size: 15px; font-weight: 600; text-align: center;
+    padding: 12px; border-radius: 10px;
+    background: linear-gradient(145deg, #161b22, #1c2333);
+    border: 1px solid #30363d;
   }
   #eval-display {
-    font-size: 28px;
-    font-weight: 700;
-    text-align: center;
+    font-size: 32px; font-weight: 800; text-align: center;
+    font-variant-numeric: tabular-nums;
   }
-  .eval-label { font-size: 12px; color: #888; }
+  .eval-label { font-size: 12px; color: #666; text-align: center; }
   #move-list {
-    max-height: 320px;
-    overflow-y: auto;
-    font-family: 'Courier New', monospace;
-    font-size: 13px;
-    line-height: 1.8;
+    max-height: 300px; overflow-y: auto;
+    font-family: 'SF Mono', 'Courier New', monospace;
+    font-size: 13px; line-height: 1.9;
   }
-  #move-list .move-num { color: #666; margin-right: 4px; }
+  #move-list .move-num { color: #555; margin-right: 4px; }
   #move-list .white-move { color: #f0f0f0; }
-  #move-list .black-move { color: #aaa; }
+  #move-list .black-move { color: #999; }
   .buttons { display: flex; gap: 8px; }
   .btn {
-    flex: 1;
-    padding: 10px 16px;
-    border: none;
-    border-radius: 6px;
-    font-size: 14px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: background 0.2s;
+    flex: 1; padding: 10px 14px;
+    border: 1px solid #30363d; border-radius: 8px;
+    font-size: 13px; font-weight: 600; cursor: pointer;
+    background: linear-gradient(145deg, #161b22, #1c2333);
+    color: #e0e0e0; transition: all 0.2s;
   }
-  .btn-primary { background: #0f3460; color: #e0e0e0; }
-  .btn-primary:hover { background: #1a4a7a; }
-  .btn-danger { background: #5c2030; color: #e0e0e0; }
-  .btn-danger:hover { background: #7a2a40; }
-  .thinking { animation: pulse 1s infinite; }
-  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.5; } }
-
-  .highlight-legal {
-    background: radial-gradient(circle, rgba(0,0,0,0.25) 25%, transparent 25%);
-    border-radius: 50%;
-  }
-  .highlight-from {
-    box-shadow: inset 0 0 0 4px rgba(255,255,100,0.6);
-  }
-
-  /* depth selector */
-  .depth-row {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-  .depth-row label { font-size: 13px; color: #aaa; }
+  .btn:hover { background: #1f2a3a; border-color: #4a5568; }
+  .depth-row { display: flex; align-items: center; gap: 8px; }
+  .depth-row label { font-size: 13px; color: #999; }
   .depth-row select {
-    flex: 1;
-    padding: 4px 8px;
-    border-radius: 4px;
-    border: 1px solid #333;
-    background: #0f3460;
-    color: #e0e0e0;
-    font-size: 13px;
+    flex: 1; padding: 4px 8px; border-radius: 6px;
+    border: 1px solid #30363d; background: #161b22;
+    color: #e0e0e0; font-size: 13px;
+  }
+  .thinking { animation: pulse 1s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+  #help-text {
+    font-size: 11px; color: #555; text-align: center;
+    padding: 4px 0;
   }
 </style>
 </head>
 <body>
 
-<div class="container">
-  <div class="board-wrap">
-    <div id="status">Your turn — White to move</div>
-    <div id="board"></div>
-    <div class="buttons">
-      <button class="btn btn-primary" onclick="newGame()">New Game</button>
-      <button class="btn btn-primary" onclick="undoMove()">Undo</button>
+<div id="canvas-wrap"></div>
+
+<div class="sidebar">
+  <div id="status">Click a piece to move</div>
+
+  <div class="panel">
+    <h3>Evaluation</h3>
+    <div id="eval-display">0.0</div>
+    <div class="eval-label" id="eval-label">Equal position</div>
+  </div>
+
+  <div class="panel">
+    <div class="depth-row">
+      <label for="depth-select">Depth:</label>
+      <select id="depth-select">
+        <option value="10">10 (fast)</option>
+        <option value="15" selected>15</option>
+        <option value="20">20 (strong)</option>
+      </select>
     </div>
   </div>
 
-  <div class="sidebar">
-    <div class="panel">
-      <h3>Evaluation</h3>
-      <div id="eval-display">0.0</div>
-      <div class="eval-label" style="text-align:center" id="eval-label">Equal position</div>
-    </div>
-
-    <div class="panel">
-      <div class="depth-row">
-        <label for="depth-select">Depth:</label>
-        <select id="depth-select">
-          <option value="10">10 (fast)</option>
-          <option value="15" selected>15</option>
-          <option value="20">20 (strong)</option>
-        </select>
-      </div>
-    </div>
-
-    <div class="panel">
-      <h3>Moves</h3>
-      <div id="move-list"></div>
-    </div>
+  <div class="panel">
+    <h3>Moves</h3>
+    <div id="move-list"></div>
   </div>
+
+  <div class="buttons">
+    <button class="btn" id="btn-new">New Game</button>
+    <button class="btn" id="btn-undo">Undo</button>
+  </div>
+  <div class="buttons">
+    <button class="btn" id="btn-swap">Swap Sides</button>
+    <button class="btn" id="btn-resign" style="color:#f87171">Resign</button>
+  </div>
+
+  <div id="help-text">Drag to orbit &middot; Scroll to zoom</div>
 </div>
 
-<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
-<script src="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
-<script>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.162.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.162.0/examples/jsm/"
+  }
+}
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+// ── Game state ────────────────────────────────────────────────────
 const game = new Chess();
-let board = null;
 let thinking = false;
-let moveHistory = [];      // SAN moves for display
-let uciMoveHistory = [];   // UCI moves for the API
+let selectedSquare = null;
+let moveHistory = [];
+let playerColor = 'w'; // 'w' or 'b'
+const pieceMeshes = new Map();   // square → mesh
+const squareMeshes = new Map();  // square → mesh
+let moveIndicators = [];
+let lastMoveHighlights = [];
 
 function getDepth() {
   return parseInt(document.getElementById('depth-select').value, 10);
 }
 
-// ── Board config ──────────────────────────────────────────────────
-function onDragStart(source, piece) {
-  if (thinking) return false;
-  if (game.game_over()) return false;
-  if (game.turn() === 'b') return false;
-  if (piece.search(/^b/) !== -1) return false;
+// ── Three.js setup ────────────────────────────────────────────────
+const wrap = document.getElementById('canvas-wrap');
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(window.devicePixelRatio);
+renderer.setSize(wrap.clientWidth, wrap.clientHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.2;
+wrap.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x1a1510);
+scene.fog = new THREE.Fog(0x1a1510, 14, 28);
+
+const camera = new THREE.PerspectiveCamera(40, wrap.clientWidth / wrap.clientHeight, 0.1, 100);
+camera.position.set(0, 9, 9);
+camera.lookAt(0, 0, 0);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.target.set(0, 0, 0);
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+controls.minDistance = 6;
+controls.maxDistance = 22;
+controls.maxPolarAngle = Math.PI / 2.2;
+controls.minPolarAngle = 0.3;
+controls.update();
+
+// ── Lights ────────────────────────────────────────────────────────
+scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+
+const dirLight = new THREE.DirectionalLight(0xfff5e6, 1.8);
+dirLight.position.set(4, 12, 6);
+dirLight.castShadow = true;
+dirLight.shadow.mapSize.set(2048, 2048);
+dirLight.shadow.camera.left = -6;
+dirLight.shadow.camera.right = 6;
+dirLight.shadow.camera.top = 6;
+dirLight.shadow.camera.bottom = -6;
+dirLight.shadow.camera.near = 1;
+dirLight.shadow.camera.far = 25;
+dirLight.shadow.bias = -0.002;
+scene.add(dirLight);
+
+const fillLight = new THREE.DirectionalLight(0xc0d0ff, 0.4);
+fillLight.position.set(-5, 6, -4);
+scene.add(fillLight);
+
+const rimLight = new THREE.PointLight(0xffd080, 0.6, 20);
+rimLight.position.set(-3, 5, 8);
+scene.add(rimLight);
+
+// ── Board ─────────────────────────────────────────────────────────
+const SQ = 1;
+const BOARD_Y = 0;
+const BOARD_THICK = 0.2;
+
+// ── Procedural tablecloth texture ─────────────────────────────────
+function createClothTexture(size) {
+  const canvas = document.createElement('canvas');
+  canvas.width = canvas.height = size;
+  const ctx = canvas.getContext('2d');
+
+  // Base linen color
+  ctx.fillStyle = '#c4a882';
+  ctx.fillRect(0, 0, size, size);
+
+  // Woven thread pattern — horizontal
+  for (let y = 0; y < size; y += 3) {
+    const brightness = 0.92 + Math.random() * 0.16;
+    ctx.fillStyle = `rgba(${Math.floor(180*brightness)}, ${Math.floor(155*brightness)}, ${Math.floor(120*brightness)}, 0.4)`;
+    ctx.fillRect(0, y, size, 1.5);
+  }
+  // Woven thread pattern — vertical
+  for (let x = 0; x < size; x += 3) {
+    const brightness = 0.90 + Math.random() * 0.18;
+    ctx.fillStyle = `rgba(${Math.floor(175*brightness)}, ${Math.floor(150*brightness)}, ${Math.floor(115*brightness)}, 0.35)`;
+    ctx.fillRect(x, 0, 1.5, size);
+  }
+
+  // Subtle organic noise for fabric grain
+  const imgData = ctx.getImageData(0, 0, size, size);
+  const d = imgData.data;
+  for (let i = 0; i < d.length; i += 4) {
+    const noise = (Math.random() - 0.5) * 14;
+    d[i]   = Math.min(255, Math.max(0, d[i] + noise));
+    d[i+1] = Math.min(255, Math.max(0, d[i+1] + noise));
+    d[i+2] = Math.min(255, Math.max(0, d[i+2] + noise));
+  }
+  ctx.putImageData(imgData, 0, 0);
+
+  return canvas;
 }
 
-function onDrop(source, target) {
-  removeHighlights();
+function createClothNormalMap(size) {
+  const canvas = document.createElement('canvas');
+  canvas.width = canvas.height = size;
+  const ctx = canvas.getContext('2d');
 
-  const move = game.move({
-    from: source,
-    to: target,
-    promotion: 'q'
-  });
+  // Neutral normal (pointing up = 128,128,255)
+  ctx.fillStyle = 'rgb(128,128,255)';
+  ctx.fillRect(0, 0, size, size);
 
-  if (move === null) return 'snapback';
+  // Soft wrinkles / folds
+  for (let i = 0; i < 12; i++) {
+    const x = Math.random() * size;
+    const y = Math.random() * size;
+    const angle = Math.random() * Math.PI;
+    const len = 80 + Math.random() * 200;
+    const nx = Math.floor(128 + Math.cos(angle) * 30);
+    const ny = Math.floor(128 + Math.sin(angle) * 30);
+    ctx.strokeStyle = `rgb(${nx},${ny},240)`;
+    ctx.lineWidth = 15 + Math.random() * 25;
+    ctx.globalAlpha = 0.15 + Math.random() * 0.15;
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.quadraticCurveTo(
+      x + Math.cos(angle + 0.5) * len * 0.5,
+      y + Math.sin(angle + 0.5) * len * 0.5,
+      x + Math.cos(angle) * len,
+      y + Math.sin(angle) * len
+    );
+    ctx.stroke();
+  }
+  ctx.globalAlpha = 1.0;
 
-  moveHistory.push(move.san);
-  uciMoveHistory.push(move.from + move.to + (move.promotion || ''));
-  updateUI();
-  askStockfish();
+  // Fine weave bumps
+  for (let y = 0; y < size; y += 3) {
+    const v = 125 + Math.floor(Math.random() * 6);
+    ctx.strokeStyle = `rgb(128,${v},252)`;
+    ctx.lineWidth = 1;
+    ctx.globalAlpha = 0.3;
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(size, y); ctx.stroke();
+  }
+  for (let x = 0; x < size; x += 3) {
+    const v = 125 + Math.floor(Math.random() * 6);
+    ctx.strokeStyle = `rgb(${v},128,252)`;
+    ctx.lineWidth = 1;
+    ctx.globalAlpha = 0.3;
+    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, size); ctx.stroke();
+  }
+  ctx.globalAlpha = 1.0;
+
+  return canvas;
 }
 
-function onSnapEnd() {
-  board.position(game.fen());
-}
+const clothColorCanvas = createClothTexture(512);
+const clothColorTex = new THREE.CanvasTexture(clothColorCanvas);
+clothColorTex.wrapS = clothColorTex.wrapT = THREE.RepeatWrapping;
+clothColorTex.repeat.set(4, 4);
 
-function onMouseoverSquare(square) {
-  if (thinking || game.game_over() || game.turn() === 'b') return;
+const clothNormalCanvas = createClothNormalMap(512);
+const clothNormalTex = new THREE.CanvasTexture(clothNormalCanvas);
+clothNormalTex.wrapS = clothNormalTex.wrapT = THREE.RepeatWrapping;
+clothNormalTex.repeat.set(4, 4);
 
-  const moves = game.moves({ square: square, verbose: true });
-  if (moves.length === 0) return;
+// Table surface — large flat plane with cloth
+const tableGeo = new THREE.PlaneGeometry(22, 22);
+const tableMat = new THREE.MeshStandardMaterial({
+  map: clothColorTex,
+  normalMap: clothNormalTex,
+  normalScale: new THREE.Vector2(0.6, 0.6),
+  roughness: 0.85,
+  metalness: 0.0,
+});
+const table = new THREE.Mesh(tableGeo, tableMat);
+table.rotation.x = -Math.PI / 2;
+table.position.y = BOARD_Y - BOARD_THICK / 2 - 0.02;
+table.receiveShadow = true;
+scene.add(table);
 
-  highlightSquare(square, 'highlight-from');
-  for (const m of moves) {
-    highlightSquare(m.to, 'highlight-legal');
+// Board frame
+const frameGeo = new THREE.BoxGeometry(8.6, BOARD_THICK, 8.6);
+const frameMat = new THREE.MeshStandardMaterial({
+  color: 0x3e2510, roughness: 0.5, metalness: 0.05
+});
+const frame = new THREE.Mesh(frameGeo, frameMat);
+frame.position.y = BOARD_Y;
+frame.receiveShadow = true;
+frame.castShadow = true;
+scene.add(frame);
+
+// Square materials
+const lightSqMat = new THREE.MeshStandardMaterial({
+  color: 0xe8c99b, roughness: 0.6, metalness: 0.0
+});
+const darkSqMat = new THREE.MeshStandardMaterial({
+  color: 0x8b5e34, roughness: 0.65, metalness: 0.0
+});
+const sqGeo = new THREE.BoxGeometry(SQ * 0.98, 0.02, SQ * 0.98);
+
+for (let r = 0; r < 8; r++) {
+  for (let c = 0; c < 8; c++) {
+    const isLight = (r + c) % 2 === 0;
+    const mesh = new THREE.Mesh(sqGeo, isLight ? lightSqMat : darkSqMat);
+    const pos = squareToWorld(c, r);
+    mesh.position.set(pos.x, BOARD_Y + BOARD_THICK / 2 + 0.011, pos.z);
+    mesh.receiveShadow = true;
+    const sqName = colRowToSquare(c, r);
+    mesh.userData.square = sqName;
+    mesh.userData.isSquare = true;
+    scene.add(mesh);
+    squareMeshes.set(sqName, mesh);
   }
 }
 
-function onMouseoutSquare() {
-  removeHighlights();
+function squareToWorld(col, row) {
+  return { x: (col - 3.5) * SQ, z: (3.5 - row) * SQ };
+}
+function colRowToSquare(col, row) {
+  return String.fromCharCode(97 + col) + (row + 1);
+}
+function squareToColRow(sq) {
+  return [sq.charCodeAt(0) - 97, parseInt(sq[1]) - 1];
 }
 
-function highlightSquare(sq, cls) {
-  const el = document.querySelector(`#board .square-${sq}`);
-  if (el) el.classList.add(cls);
-}
+// ── Piece geometry profiles (LatheGeometry) ───────────────────────
+const V2 = (x, y) => new THREE.Vector2(x, y);
+const SEGMENTS = 28;
 
-function removeHighlights() {
-  document.querySelectorAll('#board .highlight-legal, #board .highlight-from')
-    .forEach(el => {
-      el.classList.remove('highlight-legal');
-      el.classList.remove('highlight-from');
-    });
-}
-
-const boardConfig = {
-  draggable: true,
-  position: 'start',
-  pieceTheme: 'https://chessboardjs.com/img/chesspieces/alpha/{piece}.png',
-  onDragStart: onDragStart,
-  onDrop: onDrop,
-  onSnapEnd: onSnapEnd,
-  onMouseoverSquare: onMouseoverSquare,
-  onMouseoutSquare: onMouseoutSquare,
+const PIECE_PROFILES = {
+  p: [
+    V2(0.001,0), V2(0.26,0), V2(0.26,0.04), V2(0.20,0.08),
+    V2(0.09,0.20), V2(0.07,0.32), V2(0.08,0.40),
+    V2(0.14,0.44), V2(0.14,0.48), V2(0.09,0.54),
+    V2(0.001,0.58)
+  ],
+  r: [
+    V2(0.001,0), V2(0.28,0), V2(0.28,0.04), V2(0.22,0.08),
+    V2(0.10,0.20), V2(0.09,0.42), V2(0.16,0.46),
+    V2(0.20,0.50), V2(0.20,0.62), V2(0.16,0.64),
+    V2(0.16,0.58), V2(0.09,0.55), V2(0.001,0.55)
+  ],
+  n: 'knight', // built as composite — see createKnightGeo()
+  b: [
+    V2(0.001,0), V2(0.27,0), V2(0.27,0.04), V2(0.21,0.08),
+    V2(0.09,0.20), V2(0.07,0.35), V2(0.08,0.45),
+    V2(0.12,0.50), V2(0.10,0.60), V2(0.06,0.68),
+    V2(0.03,0.74), V2(0.05,0.78), V2(0.001,0.80)
+  ],
+  q: [
+    V2(0.001,0), V2(0.30,0), V2(0.30,0.04), V2(0.23,0.08),
+    V2(0.10,0.22), V2(0.08,0.35), V2(0.07,0.50),
+    V2(0.10,0.60), V2(0.16,0.66), V2(0.17,0.72),
+    V2(0.14,0.78), V2(0.09,0.84), V2(0.05,0.88),
+    V2(0.07,0.92), V2(0.001,0.94)
+  ],
+  k: [
+    V2(0.001,0), V2(0.30,0), V2(0.30,0.04), V2(0.24,0.08),
+    V2(0.11,0.22), V2(0.08,0.38), V2(0.07,0.52),
+    V2(0.09,0.62), V2(0.14,0.68), V2(0.15,0.76),
+    V2(0.12,0.82), V2(0.10,0.88), V2(0.001,0.90)
+  ]
 };
 
-board = Chessboard('board', boardConfig);
+const PIECE_HEIGHTS = { p: 0.58, r: 0.64, n: 0.68, b: 0.80, q: 0.94, k: 1.05 };
 
-// ── Stockfish interaction ─────────────────────────────────────────
+const pieceGeoCache = {};
+function getPieceGeo(type) {
+  if (type === 'n') return null; // knight is composite
+  if (!pieceGeoCache[type]) {
+    pieceGeoCache[type] = new THREE.LatheGeometry(PIECE_PROFILES[type], SEGMENTS);
+  }
+  return pieceGeoCache[type];
+}
+
+// ── Knight: composite horse-head geometry ─────────────────────────
+function createKnightGroup(material) {
+  const group = new THREE.Group();
+
+  // Base (shared lathe style)
+  const baseProfile = [
+    V2(0.001,0), V2(0.27,0), V2(0.27,0.04), V2(0.21,0.08),
+    V2(0.10,0.20), V2(0.08,0.30), V2(0.08,0.34), V2(0.001,0.34)
+  ];
+  const base = new THREE.Mesh(
+    new THREE.LatheGeometry(baseProfile, SEGMENTS), material
+  );
+  base.castShadow = true;
+  base.receiveShadow = true;
+  group.add(base);
+
+  // Neck — angled box rising from the base
+  const neckShape = new THREE.Shape();
+  neckShape.moveTo(-0.08, 0.32);
+  neckShape.lineTo(0.08, 0.32);
+  neckShape.lineTo(0.10, 0.58);
+  neckShape.lineTo(0.06, 0.68);
+  neckShape.lineTo(-0.04, 0.70);
+  neckShape.lineTo(-0.08, 0.60);
+  neckShape.closePath();
+
+  const neckSettings = { depth: 0.14, bevelEnabled: true, bevelThickness: 0.02, bevelSize: 0.02, bevelSegments: 3 };
+  const neckGeo = new THREE.ExtrudeGeometry(neckShape, neckSettings);
+  neckGeo.translate(0, 0, -0.07);
+  const neck = new THREE.Mesh(neckGeo, material);
+  neck.castShadow = true;
+  neck.receiveShadow = true;
+  group.add(neck);
+
+  // Head — front-facing snout shape
+  const headShape = new THREE.Shape();
+  headShape.moveTo(0.06, 0.58);
+  headShape.lineTo(0.22, 0.52);
+  headShape.lineTo(0.24, 0.56);
+  headShape.lineTo(0.12, 0.64);
+  headShape.lineTo(0.06, 0.68);
+  headShape.closePath();
+
+  const headSettings = { depth: 0.12, bevelEnabled: true, bevelThickness: 0.015, bevelSize: 0.015, bevelSegments: 3 };
+  const headGeo = new THREE.ExtrudeGeometry(headShape, headSettings);
+  headGeo.translate(0, 0, -0.06);
+  const head = new THREE.Mesh(headGeo, material);
+  head.castShadow = true;
+  head.receiveShadow = true;
+  group.add(head);
+
+  // Ears — two small cones on top
+  const earGeo = new THREE.ConeGeometry(0.025, 0.08, 8);
+  const ear1 = new THREE.Mesh(earGeo, material);
+  ear1.position.set(0.0, 0.72, -0.03);
+  ear1.castShadow = true;
+  group.add(ear1);
+  const ear2 = new THREE.Mesh(earGeo, material);
+  ear2.position.set(0.0, 0.72, 0.03);
+  ear2.castShadow = true;
+  group.add(ear2);
+
+  // Eye — tiny sphere (subtle detail)
+  const eyeGeo = new THREE.SphereGeometry(0.018, 8, 8);
+  const eyeMat = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.2, metalness: 0.3 });
+  const eye1 = new THREE.Mesh(eyeGeo, eyeMat);
+  eye1.position.set(0.13, 0.60, 0.065);
+  group.add(eye1);
+  const eye2 = new THREE.Mesh(eyeGeo, eyeMat);
+  eye2.position.set(0.13, 0.60, -0.065);
+  group.add(eye2);
+
+  return group;
+}
+
+// ── King cross ────────────────────────────────────────────────────
+function createKingCross(material) {
+  const group = new THREE.Group();
+  const bar1 = new THREE.Mesh(
+    new THREE.BoxGeometry(0.04, 0.18, 0.04), material
+  );
+  bar1.position.y = 0.99;
+  bar1.castShadow = true;
+  const bar2 = new THREE.Mesh(
+    new THREE.BoxGeometry(0.12, 0.04, 0.04), material
+  );
+  bar2.position.y = 1.02;
+  bar2.castShadow = true;
+  group.add(bar1, bar2);
+  return group;
+}
+
+// ── Piece materials ───────────────────────────────────────────────
+const whiteMat = new THREE.MeshStandardMaterial({
+  color: 0xf2e6d0, roughness: 0.25, metalness: 0.05
+});
+const blackMat = new THREE.MeshStandardMaterial({
+  color: 0x1c1c1c, roughness: 0.3, metalness: 0.1
+});
+const whiteSelectedMat = new THREE.MeshStandardMaterial({
+  color: 0xf2e6d0, roughness: 0.25, metalness: 0.05, emissive: 0x444400, emissiveIntensity: 0.8
+});
+const blackSelectedMat = new THREE.MeshStandardMaterial({
+  color: 0x1c1c1c, roughness: 0.3, metalness: 0.1, emissive: 0x444400, emissiveIntensity: 0.8
+});
+
+function createPieceMesh(type, color) {
+  const mat = color === 'w' ? whiteMat : blackMat;
+
+  if (type === 'n') {
+    const knightGroup = createKnightGroup(mat);
+    // Face knight toward opponent
+    if (color === 'b') knightGroup.rotation.y = Math.PI;
+    return knightGroup;
+  }
+
+  const geo = getPieceGeo(type);
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+
+  const group = new THREE.Group();
+  group.add(mesh);
+
+  if (type === 'k') {
+    group.add(createKingCross(mat));
+  }
+
+  return group;
+}
+
+// ── Place pieces from FEN ─────────────────────────────────────────
+function clearPieces() {
+  for (const [, mesh] of pieceMeshes) {
+    scene.remove(mesh);
+  }
+  pieceMeshes.clear();
+}
+
+function placePiecesFromFEN() {
+  clearPieces();
+  const board = game.board();
+  for (let r = 0; r < 8; r++) {
+    for (let c = 0; c < 8; c++) {
+      const piece = board[7 - r][c];
+      if (!piece) continue;
+      const sq = colRowToSquare(c, r);
+      const mesh = createPieceMesh(piece.type, piece.color);
+      const pos = squareToWorld(c, r);
+      mesh.position.set(pos.x, BOARD_Y + BOARD_THICK / 2 + 0.02, pos.z);
+      mesh.userData.square = sq;
+      mesh.userData.color = piece.color;
+      mesh.userData.type = piece.type;
+      mesh.userData.isPiece = true;
+      scene.add(mesh);
+      pieceMeshes.set(sq, mesh);
+    }
+  }
+}
+
+// ── Interaction ───────────────────────────────────────────────────
+const raycaster = new THREE.Raycaster();
+const mouse = new THREE.Vector2();
+
+renderer.domElement.addEventListener('click', onClick);
+
+function onClick(e) {
+  if (thinking) return;
+  if (game.game_over()) return;
+  if (game.turn() !== playerColor) return;
+
+  const rect = renderer.domElement.getBoundingClientRect();
+  mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+  mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+
+  raycaster.setFromCamera(mouse, camera);
+
+  // Collect all clickable objects
+  const targets = [];
+  for (const [, m] of pieceMeshes) targets.push(...getAllChildren(m));
+  for (const [, m] of squareMeshes) targets.push(m);
+  for (const ind of moveIndicators) targets.push(...getAllChildren(ind));
+
+  const hits = raycaster.intersectObjects(targets, false);
+  if (hits.length === 0) { deselectPiece(); return; }
+
+  // Find which square or piece was hit
+  let hitSquare = null;
+  for (const hit of hits) {
+    let obj = hit.object;
+    while (obj && !obj.userData.square) obj = obj.parent;
+    if (obj && obj.userData.square) { hitSquare = obj.userData.square; break; }
+  }
+  // Also check if a move indicator dot was hit
+  for (const hit of hits) {
+    let obj = hit.object;
+    while (obj && !obj.userData.moveTarget) obj = obj.parent;
+    if (obj && obj.userData.moveTarget) { hitSquare = obj.userData.moveTarget; break; }
+  }
+
+  if (!hitSquare) { deselectPiece(); return; }
+
+  if (selectedSquare) {
+    // Check if hitSquare is a valid move
+    const validMoves = game.moves({ square: selectedSquare, verbose: true });
+    const targetMove = validMoves.find(m => m.to === hitSquare);
+    if (targetMove) {
+      makePlayerMove(selectedSquare, hitSquare);
+      return;
+    }
+    // Clicked own piece? Select it instead
+    const pm = pieceMeshes.get(hitSquare);
+    if (pm && pm.userData.color === playerColor) {
+      deselectPiece();
+      selectPiece(hitSquare);
+      return;
+    }
+    deselectPiece();
+  } else {
+    const pm = pieceMeshes.get(hitSquare);
+    if (pm && pm.userData.color === playerColor) {
+      selectPiece(hitSquare);
+    }
+  }
+}
+
+function getAllChildren(obj) {
+  const arr = [obj];
+  obj.traverse(child => { if (child.isMesh) arr.push(child); });
+  return arr;
+}
+
+function selectPiece(sq) {
+  selectedSquare = sq;
+  const mesh = pieceMeshes.get(sq);
+  if (!mesh) return;
+
+  playSound('select');
+
+  // Highlight selected piece
+  const selMat = mesh.userData.color === 'w' ? whiteSelectedMat : blackSelectedMat;
+  mesh.traverse(child => { if (child.isMesh) child.material = selMat; });
+
+  // Show valid moves
+  const moves = game.moves({ square: sq, verbose: true });
+  const indicatorMat = new THREE.MeshStandardMaterial({
+    color: 0x44cc44, transparent: true, opacity: 0.6,
+    roughness: 0.8, metalness: 0.0
+  });
+  const captureMat = new THREE.MeshStandardMaterial({
+    color: 0xee4444, transparent: true, opacity: 0.6,
+    roughness: 0.8, metalness: 0.0
+  });
+
+  for (const move of moves) {
+    const [c, r] = squareToColRow(move.to);
+    const pos = squareToWorld(c, r);
+    const isCapture = move.captured || move.flags.includes('e');
+    let indicator;
+    if (isCapture) {
+      const ringGeo = new THREE.RingGeometry(0.32, 0.44, 32);
+      indicator = new THREE.Mesh(ringGeo, captureMat);
+    } else {
+      const dotGeo = new THREE.CircleGeometry(0.15, 24);
+      indicator = new THREE.Mesh(dotGeo, indicatorMat);
+    }
+    indicator.rotation.x = -Math.PI / 2;
+    indicator.position.set(pos.x, BOARD_Y + BOARD_THICK / 2 + 0.025, pos.z);
+    indicator.userData.moveTarget = move.to;
+    scene.add(indicator);
+    moveIndicators.push(indicator);
+  }
+}
+
+function deselectPiece() {
+  if (selectedSquare) {
+    const mesh = pieceMeshes.get(selectedSquare);
+    if (mesh) {
+      const origMat = mesh.userData.color === 'w' ? whiteMat : blackMat;
+      mesh.traverse(child => { if (child.isMesh) child.material = origMat; });
+    }
+  }
+  selectedSquare = null;
+  clearMoveIndicators();
+}
+
+function clearMoveIndicators() {
+  for (const ind of moveIndicators) scene.remove(ind);
+  moveIndicators = [];
+}
+
+function clearLastMoveHighlights() {
+  for (const h of lastMoveHighlights) scene.remove(h);
+  lastMoveHighlights = [];
+}
+
+function highlightLastMove(from, to) {
+  clearLastMoveHighlights();
+  const mat = new THREE.MeshStandardMaterial({
+    color: 0xcccc44, transparent: true, opacity: 0.25,
+    roughness: 1.0, metalness: 0.0
+  });
+  const geo = new THREE.BoxGeometry(SQ * 0.96, 0.015, SQ * 0.96);
+  for (const sq of [from, to]) {
+    const [c, r] = squareToColRow(sq);
+    const pos = squareToWorld(c, r);
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.set(pos.x, BOARD_Y + BOARD_THICK / 2 + 0.02, pos.z);
+    scene.add(mesh);
+    lastMoveHighlights.push(mesh);
+  }
+}
+
+// ── Sound effects (Web Audio API — no files needed) ───────────────
+const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+function playSound(type) {
+  // Ensure context is running (Chrome autoplay policy)
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+
+  const now = audioCtx.currentTime;
+
+  if (type === 'move') {
+    // Wooden "click" — short filtered noise burst
+    const dur = 0.08;
+    const buf = audioCtx.createBuffer(1, audioCtx.sampleRate * dur, audioCtx.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < data.length; i++) {
+      data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (audioCtx.sampleRate * 0.015));
+    }
+    const src = audioCtx.createBufferSource();
+    src.buffer = buf;
+    const bp = audioCtx.createBiquadFilter();
+    bp.type = 'bandpass'; bp.frequency.value = 1800; bp.Q.value = 2.0;
+    const gain = audioCtx.createGain();
+    gain.gain.setValueAtTime(0.4, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + dur);
+    src.connect(bp).connect(gain).connect(audioCtx.destination);
+    src.start(now); src.stop(now + dur);
+  }
+
+  else if (type === 'capture') {
+    // Heavier thud + knock
+    const dur = 0.15;
+    const buf = audioCtx.createBuffer(1, audioCtx.sampleRate * dur, audioCtx.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < data.length; i++) {
+      const t = i / audioCtx.sampleRate;
+      data[i] = (Math.random() * 2 - 1) * Math.exp(-t / 0.025)
+              + Math.sin(2 * Math.PI * 180 * t) * 0.3 * Math.exp(-t / 0.04);
+    }
+    const src = audioCtx.createBufferSource();
+    src.buffer = buf;
+    const lp = audioCtx.createBiquadFilter();
+    lp.type = 'lowpass'; lp.frequency.value = 2500;
+    const gain = audioCtx.createGain();
+    gain.gain.setValueAtTime(0.5, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + dur);
+    src.connect(lp).connect(gain).connect(audioCtx.destination);
+    src.start(now); src.stop(now + dur);
+  }
+
+  else if (type === 'check') {
+    // Sharp ping — two quick tones
+    [800, 1200].forEach((freq, i) => {
+      const osc = audioCtx.createOscillator();
+      osc.type = 'sine'; osc.frequency.value = freq;
+      const gain = audioCtx.createGain();
+      const t = now + i * 0.08;
+      gain.gain.setValueAtTime(0.3, t);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.12);
+      osc.connect(gain).connect(audioCtx.destination);
+      osc.start(t); osc.stop(t + 0.12);
+    });
+  }
+
+  else if (type === 'castle') {
+    // Two quick wooden clacks (king + rook)
+    [0, 0.1].forEach(delay => {
+      const dur = 0.07;
+      const buf = audioCtx.createBuffer(1, audioCtx.sampleRate * dur, audioCtx.sampleRate);
+      const data = buf.getChannelData(0);
+      for (let i = 0; i < data.length; i++) {
+        data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (audioCtx.sampleRate * 0.012));
+      }
+      const src = audioCtx.createBufferSource();
+      src.buffer = buf;
+      const bp = audioCtx.createBiquadFilter();
+      bp.type = 'bandpass'; bp.frequency.value = 2200; bp.Q.value = 1.5;
+      const gain = audioCtx.createGain();
+      gain.gain.setValueAtTime(0.4, now + delay);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + delay + dur);
+      src.connect(bp).connect(gain).connect(audioCtx.destination);
+      src.start(now + delay); src.stop(now + delay + dur);
+    });
+  }
+
+  else if (type === 'gameover') {
+    // Descending chord
+    [520, 440, 330].forEach((freq, i) => {
+      const osc = audioCtx.createOscillator();
+      osc.type = 'triangle'; osc.frequency.value = freq;
+      const gain = audioCtx.createGain();
+      const t = now + i * 0.18;
+      gain.gain.setValueAtTime(0.25, t);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.5);
+      osc.connect(gain).connect(audioCtx.destination);
+      osc.start(t); osc.stop(t + 0.5);
+    });
+  }
+
+  else if (type === 'select') {
+    // Soft tick
+    const dur = 0.04;
+    const buf = audioCtx.createBuffer(1, audioCtx.sampleRate * dur, audioCtx.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < data.length; i++) {
+      data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (audioCtx.sampleRate * 0.006));
+    }
+    const src = audioCtx.createBufferSource();
+    src.buffer = buf;
+    const bp = audioCtx.createBiquadFilter();
+    bp.type = 'bandpass'; bp.frequency.value = 3000; bp.Q.value = 3;
+    const gain = audioCtx.createGain();
+    gain.gain.setValueAtTime(0.15, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + dur);
+    src.connect(bp).connect(gain).connect(audioCtx.destination);
+    src.start(now); src.stop(now + dur);
+  }
+}
+
+// Determine the right sound for a chess.js move object
+function soundForMove(move) {
+  if (move.flags.includes('k') || move.flags.includes('q')) return 'castle';
+  if (move.captured) return 'capture';
+  return 'move';
+}
+
+// ── Move execution ────────────────────────────────────────────────
+let animating = false;
+
+function makePlayerMove(from, to) {
+  deselectPiece();
+  const move = game.move({ from, to, promotion: 'q' });
+  if (!move) return;
+  moveHistory.push(move.san);
+  highlightLastMove(from, to);
+  const snd = soundForMove(move);
+  animatePieceMove(from, to, () => {
+    playSound(snd);
+    placePiecesFromFEN();
+    updateUI();
+    if (game.game_over()) { playSound('gameover'); return; }
+    if (game.in_check()) playSound('check');
+    askStockfish();
+  });
+}
+
+function animatePieceMove(from, to, callback) {
+  const mesh = pieceMeshes.get(from);
+  if (!mesh) { callback(); return; }
+
+  animating = true;
+  const [fc, fr] = squareToColRow(from);
+  const [tc, tr] = squareToColRow(to);
+  const startPos = squareToWorld(fc, fr);
+  const endPos = squareToWorld(tc, tr);
+  const startY = mesh.position.y;
+  const duration = 350;
+  const startTime = performance.now();
+
+  function tick(now) {
+    const t = Math.min((now - startTime) / duration, 1);
+    const ease = t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
+    mesh.position.x = startPos.x + (endPos.x - startPos.x) * ease;
+    mesh.position.z = startPos.z + (endPos.z - startPos.z) * ease;
+    mesh.position.y = startY + Math.sin(Math.PI * t) * 0.4;
+    if (t < 1) {
+      requestAnimationFrame(tick);
+    } else {
+      animating = false;
+      callback();
+    }
+  }
+  requestAnimationFrame(tick);
+}
+
 async function askStockfish() {
   if (game.game_over()) return;
-
   thinking = true;
   setStatus('<span class="thinking">Stockfish is thinking...</span>');
 
@@ -249,34 +915,34 @@ async function askStockfish() {
     const resp = await fetch('/move', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        fen: game.fen(),
-        depth: getDepth()
-      })
+      body: JSON.stringify({ fen: game.fen(), depth: getDepth() })
     });
-
     const data = await resp.json();
 
     if (data.best_move) {
       const from = data.best_move.substring(0, 2);
       const to = data.best_move.substring(2, 4);
       const promo = data.best_move.length > 4 ? data.best_move[4] : undefined;
-
       const move = game.move({ from, to, promotion: promo });
       if (move) {
         moveHistory.push(move.san);
-        uciMoveHistory.push(data.best_move);
-        board.position(game.fen());
+        highlightLastMove(from, to);
+        const snd = soundForMove(move);
+        animatePieceMove(from, to, () => {
+          playSound(snd);
+          placePiecesFromFEN();
+          thinking = false;
+          updateUI();
+          if (game.game_over()) { playSound('gameover'); }
+          else if (game.in_check()) playSound('check');
+        });
+        if (data.evaluation) updateEval(data.evaluation);
+        return;
       }
-    }
-
-    if (data.evaluation) {
-      updateEval(data.evaluation);
     }
   } catch (err) {
     console.error('Stockfish error:', err);
   }
-
   thinking = false;
   updateUI();
 }
@@ -285,25 +951,18 @@ async function askStockfish() {
 function updateEval(ev) {
   const display = document.getElementById('eval-display');
   const label = document.getElementById('eval-label');
-
+  // Stockfish returns eval from white's perspective; flip if player is black
+  const flip = playerColor === 'w' ? 1 : -1;
   if (ev.type === 'mate') {
-    const val = ev.value;
+    const val = ev.value * flip;
     display.textContent = val > 0 ? `M${val}` : `-M${Math.abs(val)}`;
     display.style.color = val > 0 ? '#4ade80' : '#f87171';
-    label.textContent = val > 0 ? 'White mates' : 'Black mates';
+    label.textContent = val > 0 ? 'You mate' : 'Engine mates';
   } else {
-    const cp = ev.value / 100;
+    const cp = (ev.value / 100) * flip;
     display.textContent = (cp >= 0 ? '+' : '') + cp.toFixed(1);
-    if (cp > 0.5) {
-      display.style.color = '#4ade80';
-      label.textContent = 'White is better';
-    } else if (cp < -0.5) {
-      display.style.color = '#f87171';
-      label.textContent = 'Black is better';
-    } else {
-      display.style.color = '#e0e0e0';
-      label.textContent = 'Equal position';
-    }
+    display.style.color = cp > 0.5 ? '#4ade80' : cp < -0.5 ? '#f87171' : '#e0e0e0';
+    label.textContent = cp > 0.5 ? 'You are better' : cp < -0.5 ? 'Engine is better' : 'Equal position';
   }
 }
 
@@ -312,68 +971,92 @@ function setStatus(html) {
 }
 
 function updateUI() {
-  // Status
+  const isPlayerTurn = game.turn() === playerColor;
   if (game.in_checkmate()) {
-    const winner = game.turn() === 'w' ? 'Black' : 'White';
-    setStatus(`Checkmate — ${winner} wins!`);
+    setStatus(isPlayerTurn ? 'Checkmate — You lose!' : 'Checkmate — You win!');
   } else if (game.in_stalemate()) {
     setStatus('Stalemate — Draw');
-  } else if (game.in_threefold_repetition()) {
-    setStatus('Threefold repetition — Draw');
-  } else if (game.insufficient_material()) {
-    setStatus('Insufficient material — Draw');
   } else if (game.in_draw()) {
     setStatus('Draw');
   } else if (game.in_check()) {
-    const who = game.turn() === 'w' ? 'White' : 'Black';
-    setStatus(`${who} is in check!`);
+    setStatus(isPlayerTurn ? 'You are in check!' : 'Engine is in check!');
   } else {
-    const who = game.turn() === 'w' ? 'White' : 'Black';
-    const yours = game.turn() === 'w' ? 'Your turn' : 'Stockfish thinking...';
-    setStatus(`${yours} — ${who} to move`);
+    setStatus(isPlayerTurn ? 'Your turn — click a piece' : 'Stockfish thinking...');
   }
 
-  // Move list
   const ml = document.getElementById('move-list');
   let html = '';
   for (let i = 0; i < moveHistory.length; i += 2) {
     const num = Math.floor(i / 2) + 1;
     html += `<span class="move-num">${num}.</span>`;
     html += `<span class="white-move">${moveHistory[i]}</span> `;
-    if (moveHistory[i + 1]) {
-      html += `<span class="black-move">${moveHistory[i + 1]}</span> `;
-    }
+    if (moveHistory[i + 1]) html += `<span class="black-move">${moveHistory[i + 1]}</span> `;
   }
   ml.innerHTML = html;
   ml.scrollTop = ml.scrollHeight;
 }
 
 // ── Controls ──────────────────────────────────────────────────────
-function newGame() {
+function resetGame() {
   game.reset();
-  board.start();
   moveHistory = [];
-  uciMoveHistory = [];
   thinking = false;
+  selectedSquare = null;
+  clearMoveIndicators();
+  clearLastMoveHighlights();
+  placePiecesFromFEN();
   document.getElementById('eval-display').textContent = '0.0';
   document.getElementById('eval-display').style.color = '#e0e0e0';
   document.getElementById('eval-label').textContent = 'Equal position';
   updateUI();
+  // If player is black, Stockfish moves first
+  if (playerColor === 'b') askStockfish();
 }
 
-function undoMove() {
+document.getElementById('btn-new').addEventListener('click', resetGame);
+
+document.getElementById('btn-undo').addEventListener('click', () => {
   if (thinking || moveHistory.length < 2) return;
-  // Undo both Stockfish's and player's move
-  game.undo();
-  game.undo();
+  game.undo(); game.undo();
   moveHistory.splice(-2);
-  uciMoveHistory.splice(-2);
-  board.position(game.fen());
+  deselectPiece();
+  clearLastMoveHighlights();
+  placePiecesFromFEN();
   updateUI();
+});
+
+document.getElementById('btn-swap').addEventListener('click', () => {
+  if (thinking) return;
+  playerColor = playerColor === 'w' ? 'b' : 'w';
+  resetGame();
+});
+
+document.getElementById('btn-resign').addEventListener('click', () => {
+  if (thinking || game.game_over()) return;
+  playSound('gameover');
+  setStatus('You resigned — Engine wins!');
+  thinking = true; // lock the board
+});
+
+// ── Resize ────────────────────────────────────────────────────────
+window.addEventListener('resize', () => {
+  camera.aspect = wrap.clientWidth / wrap.clientHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(wrap.clientWidth, wrap.clientHeight);
+});
+
+// ── Render loop ───────────────────────────────────────────────────
+function animate() {
+  requestAnimationFrame(animate);
+  controls.update();
+  renderer.render(scene, camera);
 }
 
-// Initial render
+// ── Init ──────────────────────────────────────────────────────────
+placePiecesFromFEN();
 updateUI();
+animate();
+if (playerColor === 'b') askStockfish();
 </script>
 </body>
 </html>
