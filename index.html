@@ -526,6 +526,91 @@ table.position.y = BOARD_Y - BOARD_THICK / 2 - 0.02;
 table.receiveShadow = true;
 scene.add(table);
 
+// ── Cognac glasses ────────────────────────────────────────────────
+function createCognacGlass() {
+  const group = new THREE.Group();
+  const V = (x, y) => new THREE.Vector2(x, y);
+  const S = 4.0; // scale factor for visibility
+
+  // Glass bowl (snifter shape)
+  const glassProfile = [
+    V(0.001*S, 0),
+    V(0.12*S, 0),
+    V(0.12*S, 0.02*S),
+    V(0.04*S, 0.06*S),
+    V(0.03*S, 0.18*S),
+    V(0.04*S, 0.22*S),
+    V(0.18*S, 0.38*S),
+    V(0.20*S, 0.45*S),
+    V(0.19*S, 0.52*S),
+    V(0.15*S, 0.58*S),
+    V(0.13*S, 0.60*S),
+  ];
+  const glassMat = new THREE.MeshStandardMaterial({
+    color: 0xd4e8ff, roughness: 0.05, metalness: 0.1,
+    transparent: true, opacity: 0.25,
+    side: THREE.DoubleSide, envMapIntensity: 2.0
+  });
+  const glassGeo = new THREE.LatheGeometry(glassProfile, 24);
+  const glassMesh = new THREE.Mesh(glassGeo, glassMat);
+  glassMesh.castShadow = true;
+  glassMesh.receiveShadow = true;
+  group.add(glassMesh);
+
+  // Glass rim highlight
+  const rimGeo = new THREE.TorusGeometry(0.13*S, 0.008*S, 8, 24);
+  const rimMat = new THREE.MeshStandardMaterial({
+    color: 0xffffff, roughness: 0.05, metalness: 0.3,
+    transparent: true, opacity: 0.5
+  });
+  const rim = new THREE.Mesh(rimGeo, rimMat);
+  rim.position.y = 0.60*S;
+  rim.rotation.x = Math.PI / 2;
+  group.add(rim);
+
+  // Cognac liquid (filled to ~60% of bowl)
+  const liquidProfile = [
+    V(0.001*S, 0.22*S),
+    V(0.04*S, 0.22*S),
+    V(0.17*S, 0.37*S),
+    V(0.19*S, 0.42*S),
+    V(0.18*S, 0.44*S),
+    V(0.001*S, 0.44*S),
+  ];
+  const liquidMat = new THREE.MeshStandardMaterial({
+    color: 0xc45e10, roughness: 0.15, metalness: 0.0,
+    transparent: true, opacity: 0.8,
+    emissive: 0x4a1800, emissiveIntensity: 0.15,
+    side: THREE.DoubleSide
+  });
+  const liquidGeo = new THREE.LatheGeometry(liquidProfile, 24);
+  const liquidMesh = new THREE.Mesh(liquidGeo, liquidMat);
+  group.add(liquidMesh);
+
+  // Liquid surface disc (visible meniscus)
+  const surfaceGeo = new THREE.CircleGeometry(0.18*S, 24);
+  const surfaceMat = new THREE.MeshStandardMaterial({
+    color: 0xd4700a, roughness: 0.1, metalness: 0.2,
+    transparent: true, opacity: 0.7
+  });
+  const surface = new THREE.Mesh(surfaceGeo, surfaceMat);
+  surface.rotation.x = -Math.PI / 2;
+  surface.position.y = 0.44*S;
+  group.add(surface);
+
+  return group;
+}
+
+const tableY = BOARD_Y - BOARD_THICK / 2 - 0.02;
+
+const glass1 = createCognacGlass();
+glass1.position.set(-6.2, tableY, 3.0);
+scene.add(glass1);
+
+const glass2 = createCognacGlass();
+glass2.position.set(6.2, tableY, -2.5);
+scene.add(glass2);
+
 // Board frame
 const frameGeo = new THREE.BoxGeometry(8.6, BOARD_THICK, 8.6);
 const frameMat = new THREE.MeshStandardMaterial({
