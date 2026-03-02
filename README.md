@@ -6,6 +6,14 @@ A fully interactive 3D chess game running in a Docker container. Play against th
 
 ## Quick Start
 
+### Pull from Docker Hub
+
+```bash
+docker run -d -p 8000:8000 haraldbeker/chess3d
+```
+
+### Build from source
+
 ```bash
 docker compose up --build -d
 ```

@@ -9,7 +9,10 @@ Containerized 3D chess application: a Three.js frontend where users play against
 ## Build & Run
 
 ```bash
-# Build and start (detached)
+# Pull from Docker Hub
+docker run -d -p 8000:8000 haraldbeker/chess3d
+
+# Or build from source (detached)
 docker compose up --build -d
 
 # Rebuild after code changes
