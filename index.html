@@ -119,9 +119,9 @@
       <select id="time-select">
         <option value="60,0">Bullet 1+0</option>
         <option value="120,1">Bullet 2+1</option>
-        <option value="180,2" selected>Blitz 3+2</option>
+        <option value="180,2">Blitz 3+2</option>
         <option value="300,3">Blitz 5+3</option>
-        <option value="600,5">Rapid 10+5</option>
+        <option value="600,5" selected>Rapid 10+5</option>
         <option value="900,10">Rapid 15+10</option>
         <option value="0,0">Unlimited</option>
       </select>
@@ -368,11 +368,11 @@ scene.add(new THREE.AmbientLight(0xffffff, 0.5));
 const dirLight = new THREE.DirectionalLight(0xfff5e6, 1.8);
 dirLight.position.set(4, 12, 6);
 dirLight.castShadow = true;
-dirLight.shadow.mapSize.set(1024, 1024);
-dirLight.shadow.camera.left = -6;
-dirLight.shadow.camera.right = 6;
-dirLight.shadow.camera.top = 6;
-dirLight.shadow.camera.bottom = -6;
+dirLight.shadow.mapSize.set(2048, 2048);
+dirLight.shadow.camera.left = -10;
+dirLight.shadow.camera.right = 10;
+dirLight.shadow.camera.top = 10;
+dirLight.shadow.camera.bottom = -10;
 dirLight.shadow.camera.near = 1;
 dirLight.shadow.camera.far = 25;
 dirLight.shadow.bias = -0.002;
@@ -552,15 +552,18 @@ function createCognacGlass() {
     V(0.15*S, 0.58*S),
     V(0.13*S, 0.60*S),
   ];
-  const glassMat = new THREE.MeshStandardMaterial({
+  const glassMat = new THREE.MeshPhysicalMaterial({
     color: 0xd4e8ff, roughness: 0.05, metalness: 0.1,
-    transparent: true, opacity: 0.25,
+    transmission: 0.95, thickness: 0.3, ior: 1.5,
+    transparent: true, opacity: 1.0,
+    depthWrite: false,
     side: THREE.DoubleSide, envMapIntensity: 2.0
   });
   const glassGeo = new THREE.LatheGeometry(glassProfile, 24);
   const glassMesh = new THREE.Mesh(glassGeo, glassMat);
-  glassMesh.castShadow = false;
+  glassMesh.castShadow = true;
   glassMesh.receiveShadow = true;
+  glassMesh.renderOrder = 2;
   group.add(glassMesh);
 
   // Glass rim highlight
@@ -574,34 +577,38 @@ function createCognacGlass() {
   rim.rotation.x = Math.PI / 2;
   group.add(rim);
 
-  // Cognac liquid (filled to ~60% of bowl)
+  // Cognac liquid (filled to ~60% of bowl, slightly inset from glass)
   const liquidProfile = [
-    V(0.001*S, 0.22*S),
-    V(0.04*S, 0.22*S),
-    V(0.17*S, 0.37*S),
-    V(0.19*S, 0.42*S),
-    V(0.18*S, 0.44*S),
-    V(0.001*S, 0.44*S),
+    V(0.001*S, 0.23*S),
+    V(0.035*S, 0.23*S),
+    V(0.155*S, 0.37*S),
+    V(0.175*S, 0.42*S),
+    V(0.165*S, 0.43*S),
+    V(0.001*S, 0.43*S),
   ];
-  const liquidMat = new THREE.MeshStandardMaterial({
+  const liquidMat = new THREE.MeshPhysicalMaterial({
     color: 0xc45e10, roughness: 0.15, metalness: 0.0,
     transparent: true, opacity: 0.8,
-    emissive: 0x4a1800, emissiveIntensity: 0.15,
+    transmission: 0.3, thickness: 0.5,
+    emissive: 0x4a1800, emissiveIntensity: 0.2,
     side: THREE.DoubleSide
   });
   const liquidGeo = new THREE.LatheGeometry(liquidProfile, 24);
   const liquidMesh = new THREE.Mesh(liquidGeo, liquidMat);
+  liquidMesh.renderOrder = 1;
   group.add(liquidMesh);
 
   // Liquid surface disc (visible meniscus)
-  const surfaceGeo = new THREE.CircleGeometry(0.18*S, 24);
-  const surfaceMat = new THREE.MeshStandardMaterial({
+  const surfaceGeo = new THREE.CircleGeometry(0.165*S, 24);
+  const surfaceMat = new THREE.MeshPhysicalMaterial({
     color: 0xd4700a, roughness: 0.1, metalness: 0.2,
-    transparent: true, opacity: 0.7
+    transparent: true, opacity: 0.75,
+    transmission: 0.2
   });
   const surface = new THREE.Mesh(surfaceGeo, surfaceMat);
   surface.rotation.x = -Math.PI / 2;
-  surface.position.y = 0.44*S;
+  surface.position.y = 0.43*S;
+  surface.renderOrder = 1;
   group.add(surface);
 
   return group;
@@ -750,12 +757,70 @@ frame.receiveShadow = true;
 frame.castShadow = true;
 scene.add(frame);
 
-// Square materials
+// Procedural marble texture generator
+function createMarbleTexture(baseColor, veinColor, size = 256) {
+  const canvas = document.createElement('canvas');
+  canvas.width = canvas.height = size;
+  const ctx = canvas.getContext('2d');
+
+  // Fill base color
+  ctx.fillStyle = baseColor;
+  ctx.fillRect(0, 0, size, size);
+
+  // Simple seeded random for reproducibility per tile
+  function noise(x, y) {
+    const n = Math.sin(x * 127.1 + y * 311.7) * 43758.5453;
+    return n - Math.floor(n);
+  }
+  function smoothNoise(x, y) {
+    const ix = Math.floor(x), iy = Math.floor(y);
+    const fx = x - ix, fy = y - iy;
+    const a = noise(ix, iy), b = noise(ix+1, iy);
+    const c = noise(ix, iy+1), d = noise(ix+1, iy+1);
+    const ux = fx*fx*(3-2*fx), uy = fy*fy*(3-2*fy);
+    return a+(b-a)*ux + (c-a+(a-b-c+d)*ux)*uy;
+  }
+  function fbm(x, y) {
+    let v = 0, amp = 0.5, freq = 1;
+    for (let i = 0; i < 5; i++) {
+      v += amp * smoothNoise(x*freq, y*freq);
+      amp *= 0.5; freq *= 2;
+    }
+    return v;
+  }
+
+  // Draw marble veins
+  const imgData = ctx.getImageData(0, 0, size, size);
+  const vc = [parseInt(veinColor.slice(1,3),16), parseInt(veinColor.slice(3,5),16), parseInt(veinColor.slice(5,7),16)];
+  const bc = [parseInt(baseColor.slice(1,3),16), parseInt(baseColor.slice(3,5),16), parseInt(baseColor.slice(5,7),16)];
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      const nx = x/size*4, ny = y/size*4;
+      const f = fbm(nx, ny);
+      const vein = Math.abs(Math.sin((nx + ny + f * 6) * Math.PI));
+      const t = Math.pow(vein, 8) * 0.7 + (1-f) * 0.08;
+      const idx = (y*size+x)*4;
+      imgData.data[idx]   = bc[0] + (vc[0]-bc[0]) * t;
+      imgData.data[idx+1] = bc[1] + (vc[1]-bc[1]) * t;
+      imgData.data[idx+2] = bc[2] + (vc[2]-bc[2]) * t;
+      imgData.data[idx+3] = 255;
+    }
+  }
+  ctx.putImageData(imgData, 0, 0);
+
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  return tex;
+}
+
+// Square materials (marble)
+const lightMarbleTex = createMarbleTexture('#e8ddd0', '#c4b09a');
+const darkMarbleTex = createMarbleTexture('#3a5c3a', '#1e3520');
 const lightSqMat = new THREE.MeshStandardMaterial({
-  color: 0xe8c99b, roughness: 0.6, metalness: 0.0
+  map: lightMarbleTex, roughness: 0.25, metalness: 0.05
 });
 const darkSqMat = new THREE.MeshStandardMaterial({
-  color: 0x8b5e34, roughness: 0.65, metalness: 0.0
+  map: darkMarbleTex, roughness: 0.3, metalness: 0.05
 });
 const sqGeo = new THREE.BoxGeometry(SQ * 0.98, 0.02, SQ * 0.98);
 
@@ -996,11 +1061,11 @@ const whiteMat = new THREE.MeshPhysicalMaterial({
   envMapIntensity: 1.5, side: THREE.DoubleSide
 });
 const blackMat = new THREE.MeshPhysicalMaterial({
-  color: 0x1a1a2e, roughness: 0.05, metalness: 0.0,
-  transmission: 0.7, thickness: 0.8, ior: 1.5,
-  transparent: true, opacity: 0.88,
+  color: 0x8b1a1a, roughness: 0.05, metalness: 0.0,
+  transmission: 0.95, thickness: 0.5, ior: 1.5,
+  transparent: true, opacity: 0.5,
   clearcoat: 1.0, clearcoatRoughness: 0.05,
-  attenuationColor: new THREE.Color(0x0a0a1e), attenuationDistance: 0.5,
+  attenuationColor: new THREE.Color(0x450a0a), attenuationDistance: 1.0,
   envMapIntensity: 1.5, side: THREE.DoubleSide
 });
 const whiteSelectedMat = new THREE.MeshPhysicalMaterial({
@@ -1012,12 +1077,12 @@ const whiteSelectedMat = new THREE.MeshPhysicalMaterial({
   envMapIntensity: 1.5, side: THREE.DoubleSide
 });
 const blackSelectedMat = new THREE.MeshPhysicalMaterial({
-  color: 0x1a1a2e, roughness: 0.05, metalness: 0.0,
-  transmission: 0.7, thickness: 0.8, ior: 1.5,
-  transparent: true, opacity: 0.88,
+  color: 0x8b1a1a, roughness: 0.05, metalness: 0.0,
+  transmission: 0.95, thickness: 0.5, ior: 1.5,
+  transparent: true, opacity: 0.5,
   clearcoat: 1.0, clearcoatRoughness: 0.05,
   emissive: 0x888822, emissiveIntensity: 0.6,
-  attenuationColor: new THREE.Color(0x0a0a1e), attenuationDistance: 0.5,
+  attenuationColor: new THREE.Color(0x450a0a), attenuationDistance: 1.0,
   envMapIntensity: 1.5, side: THREE.DoubleSide
 });
 
