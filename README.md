@@ -2,6 +2,8 @@
 
 A fully interactive 3D chess game running in a Docker container. Play against the Stockfish engine through a beautiful Three.js board with realistic lighting, shadows, and procedural sound effects.
 
+[live on Web](https://chess.bekerh.ddns.net/)
+
 ![3D Chess Board](board.png)
 
 ## Quick Start
