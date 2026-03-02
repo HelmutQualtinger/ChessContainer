@@ -75,7 +75,7 @@ The frontend is a single ES module (`<script type="module">`) using import maps 
 4. **Board** — Procedural marble textures (cream light, green dark) via canvas, wooden frame, 8×8 square meshes on linen tablecloth
 5. **Piece geometry** — `PIECE_PROFILES` dict with LatheGeometry points per piece type; knight is a composite Group (base + extruded neck/head + cone ears + sphere eyes). White pieces are crystal glass, black pieces are transparent dark red glass. Cognac snifter glasses with physically transparent rendering beside the board.
 6. **Interaction** — Raycaster click → select piece → show move indicators → click target → `makePlayerMove()`
-7. **Sound** — `playSound(type)` synthesizes audio buffers for: move, capture, check, castle, gameover, select
+7. **Sound** — `playSound(type)` synthesizes glass-on-stone audio buffers for: move, capture, check, castle, gameover, select
 8. **Engine integration** — `askStockfish()` POSTs to `/move`, animates response, manages clocks
 
 ## Stockfish Evaluation Convention

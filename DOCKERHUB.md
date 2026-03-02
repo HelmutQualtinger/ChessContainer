@@ -18,7 +18,7 @@ Open **http://localhost:8000** in your browser.
 - **Captured pieces** — Taken pieces are displayed on the tablecloth beside the board
 - **Chess clocks** — Bullet (1+0, 2+1), Blitz (3+2, 5+3), Rapid (10+5, 15+10), or Unlimited; defaults to Rapid 10+5
 - **Configurable engine strength** — Depth 10 (fast) to 20 (strong)
-- **Sound effects** — Procedurally synthesized via Web Audio API: move, capture, check, castle, game over
+- **Sound effects** — Procedurally synthesized glass-on-stone sounds via Web Audio API: move, capture, check, castle, game over
 - **Play either side** — Swap Sides rotates the camera and lets Stockfish open as white
 - **Live evaluation** — Eval bar updates after each move, always oriented from the player's perspective
 - **Move indicators** — Green dots for valid moves, red rings for captures
