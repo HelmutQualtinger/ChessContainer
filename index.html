@@ -180,6 +180,9 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
+// ── Session ───────────────────────────────────────────────────────
+const SESSION_ID = crypto.randomUUID();
+
 // ── Game state ────────────────────────────────────────────────────
 const game = new Chess();
 let thinking = false;
@@ -232,6 +235,7 @@ function initClocks() {
     // Start ticking
     clockInterval = setInterval(tickClock, 100);
   }
+  if (typeof update3DClock === 'function') update3DClock();
 }
 
 function startClock(color) {
@@ -294,6 +298,8 @@ function renderClocks() {
 
   topEl.className = 'clock-time ' + (clockRunning === topColor ? (topMs < 30000 ? 'clock-danger' : 'clock-active') : 'clock-inactive');
   botEl.className = 'clock-time ' + (clockRunning === botColor ? (botMs < 30000 ? 'clock-danger' : 'clock-active') : 'clock-inactive');
+
+  if (typeof update3DClock === 'function') update3DClock();
 }
 
 function formatTime(ms) {
@@ -553,7 +559,7 @@ function createCognacGlass() {
   });
   const glassGeo = new THREE.LatheGeometry(glassProfile, 24);
   const glassMesh = new THREE.Mesh(glassGeo, glassMat);
-  glassMesh.castShadow = true;
+  glassMesh.castShadow = false;
   glassMesh.receiveShadow = true;
   group.add(glassMesh);
 
@@ -610,6 +616,128 @@ scene.add(glass1);
 const glass2 = createCognacGlass();
 glass2.position.set(6.2, tableY, -2.5);
 scene.add(glass2);
+
+// ── 3D Chess Clock (digital) ─────────────────────────────────────
+const clock3DGroup = new THREE.Group();
+let clockCanvasL, clockCanvasR, clockTexL, clockTexR;
+let clockButtonL, clockButtonR;
+
+(function buildChessClock() {
+  const baseMat = new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 0.35, metalness: 0.25 });
+
+  // Base body
+  const baseGeo = new THREE.BoxGeometry(3.6, 0.7, 1.3);
+  const base = new THREE.Mesh(baseGeo, baseMat);
+  base.position.y = 0.35;
+  base.castShadow = true;
+  base.receiveShadow = true;
+  clock3DGroup.add(base);
+
+  // Top trim
+  const topTrim = new THREE.Mesh(
+    new THREE.BoxGeometry(3.62, 0.04, 1.32),
+    new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.3, metalness: 0.3 })
+  );
+  topTrim.position.y = 0.71;
+  clock3DGroup.add(topTrim);
+
+  // Divider strip
+  const divider = new THREE.Mesh(
+    new THREE.BoxGeometry(0.04, 0.50, 0.02),
+    new THREE.MeshStandardMaterial({ color: 0x444444, roughness: 0.3, metalness: 0.4 })
+  );
+  divider.position.set(0, 0.36, 0.66);
+  clock3DGroup.add(divider);
+
+  // LCD display canvases
+  function makeDisplayCanvas() {
+    const c = document.createElement('canvas');
+    c.width = 512; c.height = 256;
+    return c;
+  }
+
+  clockCanvasL = makeDisplayCanvas();
+  clockCanvasR = makeDisplayCanvas();
+  clockTexL = new THREE.CanvasTexture(clockCanvasL);
+  clockTexR = new THREE.CanvasTexture(clockCanvasR);
+  clockTexL.minFilter = THREE.LinearFilter;
+  clockTexR.minFilter = THREE.LinearFilter;
+
+  const panelGeo = new THREE.PlaneGeometry(1.5, 0.5);
+
+  const panelL = new THREE.Mesh(panelGeo, new THREE.MeshBasicMaterial({ map: clockTexL }));
+  panelL.position.set(-0.88, 0.38, 0.661);
+  clock3DGroup.add(panelL);
+
+  const panelR = new THREE.Mesh(panelGeo, new THREE.MeshBasicMaterial({ map: clockTexR }));
+  panelR.position.set(0.88, 0.38, 0.661);
+  clock3DGroup.add(panelR);
+
+  // Buttons on top
+  const btnGeo = new THREE.CylinderGeometry(0.26, 0.28, 0.12, 16);
+  const btnMat = new THREE.MeshStandardMaterial({ color: 0x2a2a2a, roughness: 0.5, metalness: 0.3 });
+  clockButtonL = new THREE.Mesh(btnGeo, btnMat);
+  clockButtonL.position.set(-0.88, 0.80, 0);
+  clockButtonL.castShadow = true;
+  clock3DGroup.add(clockButtonL);
+
+  clockButtonR = new THREE.Mesh(btnGeo, btnMat.clone());
+  clockButtonR.position.set(0.88, 0.80, 0);
+  clockButtonR.castShadow = true;
+  clock3DGroup.add(clockButtonR);
+})();
+
+clock3DGroup.position.set(0, tableY, -6.5);
+clock3DGroup.visible = false;
+scene.add(clock3DGroup);
+
+function drawClockFace(canvas, texture, timeMs, active, danger) {
+  const W = 512, H = 256;
+  const ctx = canvas.getContext('2d');
+
+  // Background
+  ctx.fillStyle = '#0a0a0a';
+  ctx.fillRect(0, 0, W, H);
+
+  // Subtle border
+  ctx.strokeStyle = active ? '#224422' : '#1a1a1a';
+  ctx.lineWidth = 4;
+  ctx.strokeRect(2, 2, W - 4, H - 4);
+
+  // Time digits
+  const timeStr = formatTime(timeMs);
+  ctx.font = 'bold 110px monospace';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+
+  if (danger) ctx.fillStyle = '#ff2222';
+  else if (active) ctx.fillStyle = '#22ff44';
+  else ctx.fillStyle = '#335533';
+
+  ctx.fillText(timeStr, W / 2, H / 2);
+
+  texture.needsUpdate = true;
+}
+
+function update3DClock() {
+  if (unlimited) {
+    clock3DGroup.visible = false;
+    return;
+  }
+  clock3DGroup.visible = true;
+
+  const wActive = clockRunning === 'w';
+  const bActive = clockRunning === 'b';
+  const wDanger = wActive && clockW < 30000;
+  const bDanger = bActive && clockB < 30000;
+
+  drawClockFace(clockCanvasL, clockTexL, clockW, wActive, wDanger);
+  drawClockFace(clockCanvasR, clockTexR, clockB, bActive, bDanger);
+
+  // Pressed button = active side
+  clockButtonL.position.y = wActive ? 0.74 : 0.80;
+  clockButtonR.position.y = bActive ? 0.74 : 0.80;
+}
 
 // Board frame
 const frameGeo = new THREE.BoxGeometry(8.6, BOARD_THICK, 8.6);
@@ -1410,7 +1538,7 @@ async function askStockfish() {
   try {
     const resp = await fetch('/move', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'X-Session-ID': SESSION_ID },
       body: JSON.stringify({ fen: game.fen(), depth: getDepth() })
     });
     const data = await resp.json();

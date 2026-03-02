@@ -11,6 +11,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY server.py .
 COPY index.html .
+COPY book.bin .
 
 EXPOSE 8000
 
