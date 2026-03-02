@@ -12,10 +12,11 @@ Open **http://localhost:8000** in your browser.
 
 ## Features
 
-- **True 3D board** — Three.js scene with orbit controls (drag to rotate, scroll to zoom), shadow-casting directional lighting, and a procedural linen tablecloth texture
-- **Standing 3D pieces** — Lathe-turned geometry for each piece type; the knight has a composite horse head with ears and eyes
+- **True 3D board** — Three.js scene with orbit controls (drag to rotate, scroll to zoom), shadow-casting directional lighting, procedural marble textures (cream and green), and a linen tablecloth
+- **Glass chess pieces** — Transparent crystal-glass white pieces and dark red glass pieces with physically-based rendering
+- **Cognac glasses** — Decorative snifter glasses with visible cognac liquid rendered through physically transparent glass
 - **Captured pieces** — Taken pieces are displayed on the tablecloth beside the board
-- **Chess clocks** — Bullet (1+0, 2+1), Blitz (3+2, 5+3), Rapid (10+5, 15+10), or Unlimited
+- **Chess clocks** — Bullet (1+0, 2+1), Blitz (3+2, 5+3), Rapid (10+5, 15+10), or Unlimited; defaults to Rapid 10+5
 - **Configurable engine strength** — Depth 10 (fast) to 20 (strong)
 - **Sound effects** — Procedurally synthesized via Web Audio API: move, capture, check, castle, game over
 - **Play either side** — Swap Sides rotates the camera and lets Stockfish open as white
