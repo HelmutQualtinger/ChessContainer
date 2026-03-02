@@ -9,7 +9,7 @@ A fully interactive 3D chess game running in a Docker container. Play against th
 ### Pull from Docker Hub
 
 ```bash
-docker run -d -p 8000:8000 haraldbeker/chess3d
+docker run -d -p 8000:8000 helmutqualtinger/chess3d
 ```
 
 ### Build from source

@@ -5,7 +5,7 @@ A fully interactive 3D chess game running in a Docker container. Play against th
 ## Quick Start
 
 ```bash
-docker run -p 8000:8000 helmutqualtinger/stockfish-3d:latest
+docker run -d -p 8000:8000 helmutqualtinger/chess3d
 ```
 
 Open **http://localhost:8000** in your browser.
@@ -35,7 +35,7 @@ Environment variables:
 | `STOCKFISH_HASH` | `256` | Hash table size in MB |
 
 ```bash
-docker run -p 8000:8000 -e STOCKFISH_DEPTH=15 -e STOCKFISH_THREADS=4 helmutqualtinger/stockfish-3d
+docker run -d -p 8000:8000 -e STOCKFISH_DEPTH=15 -e STOCKFISH_THREADS=4 helmutqualtinger/chess3d
 ```
 
 ## API Endpoints
@@ -59,4 +59,4 @@ docker run -p 8000:8000 -e STOCKFISH_DEPTH=15 -e STOCKFISH_THREADS=4 helmutqualt
 
 ## Source
 
-[GitHub Repository](https://github.com/helmutqualtinger/ChessContainer)
+[GitHub Repository](https://github.com/HelmutQualtinger/ChessContainer)
