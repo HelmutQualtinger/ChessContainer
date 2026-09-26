@@ -160,6 +160,11 @@
     <button class="btn" id="btn-swap">Swap Sides</button>
     <button class="btn" id="btn-resign" style="color:#f87171">Resign</button>
   </div>
+  <div class="buttons">
+    <button class="btn" id="btn-save">Save Game</button>
+    <button class="btn" id="btn-load">Load Game</button>
+  </div>
+  <input type="file" id="file-input" accept=".json" style="display:none">
 
   <div id="help-text">Drag to orbit &middot; Scroll to zoom</div>
   <a href="https://github.com/HelmutQualtinger/ChessContainer" target="_blank" rel="noopener"
@@ -1959,6 +1964,44 @@ function resetGame() {
   }
 }
 
+function saveGame() {
+  const now = new Date();
+  const ts = now.toISOString().slice(0, 19).replace('T', '_').replace(/:/g, '-');
+  const data = JSON.stringify({ pgn: game.pgn(), playerColor, timestamp: now.toISOString() });
+  const blob = new Blob([data], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `chess_${ts}.json`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+function loadGame(file) {
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      const data = JSON.parse(e.target.result);
+      game.reset();
+      if (!game.load_pgn(data.pgn)) { alert('Invalid game file.'); return; }
+      playerColor = data.playerColor || 'w';
+      moveHistory = game.history();
+      thinking = false;
+      selectedSquare = null;
+      clearMoveIndicators();
+      clearLastMoveHighlights();
+      updateAura(null);
+      clearCapturedMeshes();
+      placePiecesFromFEN();
+      rotateCameraToSide(playerColor);
+      initClocks();
+      updateUI();
+    } catch {
+      alert('Could not read game file.');
+    }
+  };
+  reader.readAsText(file);
+}
+
 document.getElementById('btn-new').addEventListener('click', resetGame);
 
 document.getElementById('btn-undo').addEventListener('click', () => {
@@ -2003,6 +2046,15 @@ document.getElementById('btn-resign').addEventListener('click', () => {
   playSound('gameover');
   setStatus('You resigned — Engine wins!');
   thinking = true; // lock the board
+});
+
+document.getElementById('btn-save').addEventListener('click', saveGame);
+document.getElementById('btn-load').addEventListener('click', () => {
+  document.getElementById('file-input').click();
+});
+document.getElementById('file-input').addEventListener('change', (e) => {
+  if (e.target.files[0]) loadGame(e.target.files[0]);
+  e.target.value = '';
 });
 
 // Re-init clocks when time control changes
